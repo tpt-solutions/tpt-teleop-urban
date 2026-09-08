@@ -1,0 +1,147 @@
+Design Document: tpt-teleop-urban (Smart City & Autonomous Vehicle Operations)
+Version: 1.0.0 (v1 Monolithic Release)
+Date: August 26, 2026
+Status: Approved for Development
+Sister Repositories: tpt-teleop, tpt-teleop-fleet, tpt-t-agri, tpt-teleop-marine, tpt-teleop-medical, tpt-teleop-defense, tpt-teleop-construction, tpt-teleop-space, tpt-teleop-inspection
+(Note: Repository retains the full tpt-teleop-urban name. All internal crates use the simplified tpt-t-urban- prefix.)
+1. Executive Summary
+tpt-teleop-urban is the hyper-optimized, zero-bloat, safety-critical, Rust-based middleware workspace designed for the most legally complex and dynamically unpredictable robotics environment on Earth: the public city.
+While other domains operate in controlled or isolated environments, urban robotics must coexist with unpredictable humans, diverse vehicle types, complex infrastructure, and strict regulatory frameworks. This system orchestrates autonomous robotaxis, last-mile sidewalk delivery bots, autonomous transit shuttles, and smart city traffic management systems.
+The fundamental constraints are uncompromising: deterministic sub-100ms reaction times to unpredictable hazards (e.g., jaywalking pedestrians), absolute regulatory compliance (auditable traffic law adherence), V2X (Vehicle-to-Everything) interoperability, GPS-denied navigation in urban canyons, on-the-fly privacy anonymization (GDPR/CCPA compliance), and fail-operational safety (ISO 26262 ASIL-D concepts). This spec is built around those constraints.
+2. Licensing & Dependency Policy
+Project License: MIT OR Apache-2.0.
+Dependency Policy: Strictly enforces the MIT/BSD/ISC chain. cargo-deny rejects any Apache-only dependencies. Dual-licensed crates are resolved strictly under MIT.
+Regulatory Note: Urban autonomous systems must comply with ISO 26262 (Functional Safety), ISO 21448 (SOTIF - Safety of the Intended Functionality), and UL 4600. tpt-teleop-urban is architected to support these certifications: deterministic execution, complete auditability of decision-making, and zero undefined behavior in the hot path.
+3. Workspace Architecture (The Crates)
+The repository is structured as a Cargo Workspace. Every crate uses the simplified tpt-t-urban- prefix.
+Core & Vehicle Control
+tpt-t-urban-core: The central deterministic event loop, vehicle state machine (Parked → Routing → Driving → Stopped → Emergency), and lock-free message bus.
+“tpt-t-urban-car`**: Autonomous vehicle trajectory planning and decision-making. Handles path generation, speed profiling, and smooth kinematic control for 4-wheel vehicles.
+tpt-t-urban-delivery: Last-mile sidewalk bot control. Handles curb detection, sidewalk navigation, pedestrian right-of-way yielding, and secure package compartment management.
+tpt-t-urban-edge: Bare-metal/RTOS execution layer for vehicle actuation. Direct, deterministic control of steer-by-wire, brake-by-wire, and throttle systems with hardware watchdog integration.
+Perception & Prediction
+tpt-t-urban-perception: Multi-sensor fusion (LiDAR, Radar, Camera, Ultrasonic). 3D object detection, tracking, and classification.
+tpt-t-urban-predict: Predictive trajectory forecasting. Uses custom, SIMD-accelerated models to predict the likely future paths of pedestrians, cyclists, and vehicles over a 3-second horizon, accounting for human unpredictability.
+Connectivity & Infrastructure
+tpt-t-urban-v2x: Vehicle-to-Everything communication. Zero-allocation parsing of C-V2X / DSRC messages (BSM, MAP, SPAT, SRM) for traffic light phasing, intersection collision warnings, and pedestrian crosswalk alerts.
+and tpt-t-urban-traffic: (For infrastructure-side deployment) Intersection management, congestion optimization, and priority routing for emergency vehicles or transit.
+Safety, Compliance & Privacy
+tpt-t-urban-safety: Independent, redundant safety monitor. Runs a simplified, deterministic "guardian" state machine that overrides the primary planner if a collision is imminent (e.g., Automatic Emergency Braking, AEB).
+tpt-t-urban-compliance: Traffic law adherence engine. Encodes local traffic rules (stop signs, right-of-way, speed limits) as a deterministic Finite State Machine (FSM), ensuring every decision is auditable and legally defensible.
+tpt-t-urban-privacy: On-the-fly data anonymization. Hardware-accelerated or SIMD-optimized blurring of faces and license plates in the video pipeline before data is written to disk or transmitted, ensuring zero GDPR/CCPA liability.
+4. Extreme Performance Tactics (Urban-Specific)
+Urban environments demand performance tactics that handle massive sensor throughput, unpredictable human behavior, and strict legal accountability.
+4.1. Zero-Allocation ASN.1 UPER Parsing for V2X
+V2X communication relies on ASN.1 Unaligned Packed Encoding Rules (UPER). Standard ASN.1 parsers are notoriously heavy, allocating memory dynamically and introducing unacceptable latency.
+The Solution: tpt-t-urban-v2x features a custom, zero-copy ASN.1 UPER parser. It reads raw UDP packets from the C-V2X radio and maps the bits directly into pre-allocated rkyv structs (e.g., BasicSafetyMessage). Parsing a full BSM takes <10 microseconds with zero heap allocation.
+4.2. Deterministic, Auditable Traffic Law FSM
+Neural networks are black boxes and cannot be legally certified for traffic law compliance (e.g., "Did the vehicle yield correctly at this 4-way stop?").
+The Solution: tpt-t-urban-compliance encodes traffic rules as a deterministic Finite State Machine. Every decision (yield, proceed, stop) is evaluated against a formalized rule set. The FSM evaluates the entire intersection state in <50 microseconds, producing a cryptographically signed, human-readable justification for every action, stored in the immutable audit log.
+4.3. SIMD-Accelerated Predictive Multi-Object Tracking
+A busy city intersection may have 50+ dynamic agents (cars, bikes, pedestrians). Tracking and predicting their trajectories at 30Hz is computationally expensive.
+The Solution: tpt-t-urban-predict uses a custom, SIMD-accelerated Interacting Multiple Model (IMM) Kalman Filter. It processes the kinematic state of 100+ agents in parallel using portable-simd, generating probabilistic trajectory cones in <2 milliseconds per frame.
+4.4. On-the-Fly Privacy Anonymization
+Storing or transmitting video of public spaces creates massive privacy liability. Post-processing blurring is too slow and risky.
+The Solution: tpt-t-urban-privacy intercepts the raw camera stream in the zero-copy ring buffer. Using a lightweight, SIMD-optimized face/license plate detection model, it applies a Gaussian blur mask in-place on the pre-allocated frame buffer before the frame is passed to the recording or teleoperation module. This adds <3ms of latency and guarantees no raw PII (Personally Identifiable Information) ever hits the disk.
+4.5. Thread-Per-Core Sensor Fusion & Control
+To guarantee deterministic latency, the system avoids all async runtime overhead.
+The Solution:
+Core 0: Ingests raw LiDAR/Camera/Radar data via io_uring into slab-allocated ring buffers.
+Core 1: Runs tpt-t-urban-perception and tpt-t-urban-predict (30Hz).
+Core 2: Runs tpt-t-urban-car planning and tpt-t-urban-compliance FSM (30Hz).
+Core 3: Runs tpt-t-urban-edge vehicle actuation and tpt-t-urban-safety guardian monitor (100Hz).
+Result: Zero context-switching, zero lock contention, guaranteed maximum latency.
+5. The "Urban Operations" Feature Matrix (v1)
+5.1. Autonomous Driving & Delivery
+Geofenced L4 Autonomy: Full self-driving within pre-mapped, validated operational design domains (ODDs).
+Sidewalk Navigation: For delivery bots, precise curb-mounting detection, sidewalk obstacle avoidance, and yielding to pedestrians (with audible/visual polite signaling).
+Dynamic Re-routing: Instantly recalculates routes around road closures, construction zones, or heavy congestion using real-time V2X and map data.
+5.2. V2X & Smart Infrastructure
+Traffic Light Phasing: Reads SPAT (Signal Phase and Timing) messages to optimize speed (Green Light Optimal Speed Advisory - GLOSA) or prepare to stop.
+Non-Line-of-Sight (NLOS) Warning: Receives BSMs from vehicles around blind corners or behind large trucks, triggering pre-emptive braking or caution.
+Emergency Vehicle Preemption: Automatically yields and pulls over when a V2X-equipped ambulance or fire truck broadcasts an SRM (Signal Request Message).
+5.3. Fail-Operational Safety
+Independent Guardian Monitor: tpt-t-urban-safety runs on a separate compute partition. If the primary planner fails or outputs an unsafe trajectory, the guardian instantly triggers AEB or a safe minimal risk maneuver (MRM), like pulling to the shoulder.
+Redundant Actuation: Supports dual-channel steer-by-wire and brake-by-wire systems, with automatic failover if a primary channel faults.
+5.4. Regulatory & Audit Compliance
+Immutable Black Box: All sensor data, V2X messages, planner outputs, and FSM decisions are logged to a hash-chained, append-only ledger (via tpt-t-urban-compliance), surviving sudden power loss.
+GDPR/CCPA by Design: The tpt-t-urban-privacy module ensures no unblurred facial or license plate data is ever stored or transmitted.
+6. The Complete "Last-Mile Urban Delivery" Data Flow
+Here is the lifecycle of an autonomous sidewalk delivery bot navigating a busy city block, demonstrating the zero-allocation, deterministic flow:
+Departure: The bot leaves the depot. tpt-t-urban-core transitions to Driving. tpt-t-urban-edge engages the drive-by-wire system.
+V2X Integration: Approaching an intersection, tpt-t-urban-v2x receives a SPAT message. The traffic light will turn red in 4 seconds. tpt-t-urban-car smoothly adjusts the speed profile to arrive at the stop line exactly as it turns red, avoiding a harsh stop.
+The Urban Canyon: The bot enters a street with tall buildings. GNSS multipath causes a 5-meter position jump. tpt-t-urban-perception instantly detects the GNSS anomaly and seamlessly falls back to LiDAR-based localization, maintaining sub-10cm accuracy.
+The Jaywalker: A pedestrian steps off the curb between parked cars. tpt-t-urban-perception detects the object. tpt-t-urban-predict calculates a high-probability trajectory intersecting the bot's path within 1.5 seconds.
+The Reaction: tpt-t-urban-car commands a smooth deceleration. Simultaneously, tpt-t-urban-safety (the guardian) validates the deceleration is sufficient. If the planner had failed to react, the guardian would have triggered AEB in <50ms.
+Privacy Protection: As the bot passes the pedestrian, the front camera captures their face. tpt-t-urban-privacy detects the face and applies an in-place blur mask to the frame buffer before it is written to the local SSD. No PII is saved.
+Delivery: The bot reaches the destination, mounts the curb (verified by ultrasonic sensors), and unlocks the secure compartment. The customer retrieves the package.
+Audit Log: The entire 5-minute sequence is logged. The hash chain is updated. If the pedestrian later files a complaint, the immutable log proves the bot detected them, yielded correctly, and maintained a safe distance, with full regulatory compliance.
+7. Dependency Matrix (The "No-Bloat" Stack)
+Functionality
+Standard Ecosystem (Banned/Avoided)
+tpt-t-urban Custom / Lightweight Choice
+License
+V2X Parsing
+Heavy ASN.1 compilers (e.g., asn1-rs)
+Custom zero-copy ASN.1 UPER parser
+MIT
+Sensor Fusion
+OpenCV, heavy SLAM frameworks
+Custom SIMD IMM Kalman Filter, slab-allocated
+MIT
+Traffic Rules
+Black-box Neural Networks
+Deterministic FSM, zero-allocation
+MIT
+Privacy/Blurring
+Heavy ML inference frameworks
+Custom SIMD-optimized detection & in-place blur
+MIT
+Serialization
+serde, bincode, prost
+rkyv (Zero-copy)
+MIT
+IPC / Telemetry
+tokio::sync, crossbeam
+Custom tpt-teleop-ring (Lock-free SPSC/MPSC)
+MIT
+Vehicle Control
+Heavy robotics frameworks (e.g., AutoWare)
+Custom kinematic planner, direct CAN/Ethernet
+MIT
+Cryptography
+openssl, rustls
+ring (Ed25519, SHA-256 for audit logs)
+ISC / MIT
+8. Developer Experience & Simulation
+Testing autonomous vehicles in real cities is legally fraught, dangerous, and expensive. tpt-teleop-urban includes a massive, high-fidelity simulation stack.
+tpt-t-urban-sim: A headless simulator that models:
+High-fidelity 3D city environments with dynamic traffic, pedestrians, and cyclists (driven by realistic behavioral models).
+Sensor simulation: LiDAR raycasting, camera rendering with motion blur, and radar point generation.
+V2X network simulation: Injecting realistic BSM/SPAT traffic with configurable latency and packet loss.
+GNSS multipath and denial modeling for urban canyons.
+Visualizer: A lightweight egui (MIT) binary that renders:
+Top-down 2D/3D view of the vehicle, predicted trajectories of all agents, and the active traffic rule FSM state.
+Real-time sensor fusion output (bounding boxes, point clouds).
+Privacy blur verification (side-by-side raw vs. anonymized frames).
+V2X message reception and range visualization.
+The simulator supports "scenario injection," allowing developers to automatically run thousands of edge cases (e.g., "pedestrian runs into street at 30mph") to validate the safety guardian and compliance FSM.
+9. Conclusion
+tpt-teleop-urban v1 brings the tpt ecosystem's uncompromising, zero-bloat philosophy to the public streets.
+By replacing heavy ASN.1 parsers with custom zero-copy V2X decoding, enforcing traffic laws via auditable deterministic FSMs, predicting human behavior with SIMD-accelerated tracking, and guaranteeing privacy via on-the-fly anonymization, tpt-t-urban proves that safe, compliant, and scalable urban autonomy does not require bloated, black-box, or Apache-encumbered middleware.
+It is a battle-ready, commercially unencumbered, safety-certifiable operating system for the future of smart cities and autonomous mobility—capable of running on a $3,000 sidewalk delivery bot or a $100,000 autonomous shuttle, navigating the most chaotic streets on Earth, all while maintaining the strict MIT-only dependency chain and extreme performance that defines the tpt ecosystem.
+Every trajectory is predicted. Every traffic rule is audited. Every face is protected. And every line of code is MIT-licensed.
+
+tpt-teleop-urban → tpt-teleop Integration
+Adapter Crate: tpt-t-urban-teleop (new crate in the urban repo)
+Integration Flow:
+An autonomous robotaxi encounters a complex construction zone and cannot navigate autonomously.
+tpt-t-urban-safety triggers a teleop handover.
+tpt-teleop establishes a low-latency link to a remote operator.
+The operator uses a steering wheel and pedals (or a joystick) to control the vehicle through the construction zone.
+tpt-t-urban-teleop receives ControlCommand and translates it into steer-by-wire and brake-by-wire commands.
+Once the vehicle clears the construction zone, control returns to autonomy.
+Domain-Specific Adaptation:
+Vehicle Dynamics: The adapter translates steering wheel angle and pedal position into vehicle dynamics commands (steering angle, throttle, brake pressure).
+Traffic Law Compliance: The adapter enforces traffic laws (e.g., speed limits, stop signs) even during teleoperation.
+Privacy Protection: The adapter ensures that video feeds are anonymized (faces and license plates blurred) before being transmitted to the operator.
