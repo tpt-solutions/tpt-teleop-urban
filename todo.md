@@ -20,35 +20,35 @@ hardware bring-up → hardening/release.
 ---
 
 ## Phase 0 — Repository & Workspace Setup
-- [ ] `git init`, initial commit of spec docs
-- [ ] Cargo workspace `Cargo.toml` (resolver "3", edition 2024, license
+- [x] `git init`, initial commit of spec docs
+- [x] Cargo workspace `Cargo.toml` (resolver "3", edition 2024, license
       `MIT OR Apache-2.0`, authors "TPT Solutions"), `crates/*` members,
       shared workspace deps table — mirror sister repos' workspace layout
-- [ ] `LICENSE-MIT` and `LICENSE-APACHE` at repo root (TPT Solutions, 2026)
-- [ ] `.gitignore` (`target/`, etc.)
-- [ ] `deny.toml` (cargo-deny): MIT/BSD/ISC/Zlib allow-chain, explicit
+- [x] `LICENSE-MIT` and `LICENSE-APACHE` at repo root (TPT Solutions, 2026)
+- [x] `.gitignore` (`target/`, etc.)
+- [x] `deny.toml` (cargo-deny): MIT/BSD/ISC/Zlib allow-chain, explicit
       Apache-2.0-only deny, `[[licenses.clarify]]` overrides for dual-licensed
       deps (`rkyv`, `windows-sys`, `proc-macro2`/`syn`/`quote`, `libc`),
       encodes the §7 dependency matrix (bans heavy ASN.1 compilers, OpenCV/
       SLAM frameworks, `serde`/`bincode`/`prost`, `tokio`/`crossbeam`,
       `openssl`/`rustls`, heavy robotics frameworks like AutoWare, in favor
       of the custom lightweight choices)
-- [ ] `.github/workflows/ci.yml` — build-test matrix (linux/macos/windows),
+- [x] `.github/workflows/ci.yml` — build-test matrix (linux/macos/windows),
       cross-compile check, `RUSTFLAGS: -D warnings`, plus a separate nightly
       job scoped to `tpt-t-urban-predict` and `tpt-t-urban-privacy`
-- [ ] `.github/workflows/lint.yml` — fmt + clippy (`-D warnings`, stable +
+- [x] `.github/workflows/lint.yml` — fmt + clippy (`-D warnings`, stable +
       nightly job for predict/privacy) + cargo-deny action
-- [ ] `rust-toolchain.toml` — stable default; document the nightly override
+- [x] `rust-toolchain.toml` — stable default; document the nightly override
       needed for `tpt-t-urban-predict` (SIMD IMM Kalman filter) and
       `tpt-t-urban-privacy` (SIMD blur), both using `portable_simd`
-- [ ] Root `README.md` (Status / Workspace Crates / Zero-Allocation Data
+- [x] Root `README.md` (Status / Workspace Crates / Zero-Allocation Data
       Path / Developer Experience / Licensing — mirror sister repos'
       section structure)
-- [ ] `CHANGELOG.md`, `SECURITY.md`
-- [ ] `docs/ARCHITECTURE.md` skeleton (workspace map, crate responsibilities,
+- [x] `CHANGELOG.md`, `SECURITY.md`
+- [x] `docs/ARCHITECTURE.md` skeleton (workspace map, crate responsibilities,
       thread-per-core layout from spec.txt §4.5)
-- [ ] `docs/quickstart.md` stub
-- [ ] Stub empty crate skeletons (Cargo.toml + lib.rs) for all crates below
+- [x] `docs/quickstart.md` stub
+- [x] Stub empty crate skeletons (Cargo.toml + lib.rs) for all crates below
 
 ## Phase 1 — Cross-Repo Bridge: `tpt-t-domain-bridge` (lives in `tpt-teleop` repo)
 - [ ] New crate `tpt-t-domain-bridge` under `tpt-teleop/crates/`
