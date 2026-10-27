@@ -129,6 +129,11 @@ hardware bring-up → hardening/release.
       FSM decisions all recorded to the black-box ledger
 
 ## Phase 7 — `tpt-t-urban-safety`
+> Status: guardian logic is done (latched AEB from TTC and braking sufficiency,
+> latched MRM from planner heartbeat, reset at rest). Open: running on a separate
+> partition, the <50 ms budget (needs measurement on target), shoulder-pull
+> MRM path planning, and dual-channel brake failover.
+
 - [ ] Independent, redundant safety "guardian" state machine (separate
       compute partition from the primary planner)
 - [ ] Automatic Emergency Braking (AEB) trigger, <50ms reaction if the
