@@ -94,6 +94,9 @@ hardware bring-up → hardening/release.
       frames
 
 ## Phase 4 — `tpt-t-urban-perception`
+> Status: GNSS kinematic jump detection, LiDAR fallback with hysteresis, and
+> curb edge detection from a height profile are done. Open: multi-sensor
+> fusion and 3D detection/tracking, which need sensor models and data.
 - [ ] Multi-sensor fusion pipeline: LiDAR, Radar, Camera, Ultrasonic
 - [ ] 3D object detection, tracking, and classification
 - [ ] GNSS multipath/anomaly detection (e.g. 5-meter position jump in urban
@@ -104,6 +107,9 @@ hardware bring-up → hardening/release.
 - [ ] Ultrasonic curb-mounting verification support
 
 ## Phase 5 — `tpt-t-urban-predict`
+> Status: two-model IMM filter and trajectory cone are done as a scalar
+> reference. Open: the `portable_simd` kernel for 100+ agents, the crate-local
+> nightly toolchain, and the <2 ms benchmark.
 - [ ] Crate-local nightly toolchain override + `#![feature(portable_simd)]`,
       CI job scoped to this crate only (rest of workspace stays stable)
 - [ ] Custom SIMD-accelerated Interacting Multiple Model (IMM) Kalman Filter
@@ -146,6 +152,10 @@ hardware bring-up → hardening/release.
       automatic channel switch on fault
 
 ## Phase 8 — `tpt-t-urban-privacy`
+> Status: in-place region blur, a redaction gate (only a redacted frame reaches
+> a sink), and the visualizer comparison hook are done. Open: the face and plate
+> detection model, the <3 ms measurement, and the SIMD kernel with its nightly
+> toolchain.
 - [ ] Crate-local nightly toolchain override + `#![feature(portable_simd)]`
       (shares the nightly CI job scope with `tpt-t-urban-predict`)
 - [ ] Lightweight SIMD-optimized face/license-plate detection model
@@ -158,6 +168,9 @@ hardware bring-up → hardening/release.
 - [ ] Side-by-side raw-vs-anonymized verification hook for the visualizer
 
 ## Phase 9 — `tpt-t-urban-car`
+> Status: speed profile (curvature, accel and brake limits), pure pursuit
+> tracking, and the GLOSA advisory are done. Open: re-routing over a road
+> graph, and emergency-vehicle SRM yield.
 - [ ] Autonomous vehicle trajectory planning and decision-making for 4-wheel
       vehicles (robotaxis and autonomous transit shuttles)
 - [ ] Path generation, speed profiling, smooth kinematic control
@@ -170,6 +183,10 @@ hardware bring-up → hardening/release.
       ambulance/fire-truck SRM broadcast
 
 ## Phase 10 — `tpt-t-urban-delivery`
+> Status: curb mount with ultrasonic verification, pedestrian yield with
+> hold-off, and the compartment lock with a constant-time code check are done.
+> Open: sidewalk navigation and obstacle avoidance, and the jaywalker
+> integration (Phase 16).
 - [ ] Curb detection and precise curb-mounting (verified by ultrasonic
       sensors from `tpt-t-urban-perception`)
 - [ ] Sidewalk navigation and obstacle avoidance
@@ -180,12 +197,17 @@ hardware bring-up → hardening/release.
       backstop
 
 ## Phase 11 — `tpt-t-urban-traffic` (infrastructure-side deployment)
+> Status: fixed-time signal controller with yellow and all-red clearance, and
+> SRM preemption, are done. Open: congestion optimization and SPAT/MAP broadcast.
 - [ ] Intersection management (signal phasing coordination)
 - [ ] Congestion optimization across managed intersections
 - [ ] Priority routing for emergency vehicles or transit (SRM issuance)
 - [ ] V2X broadcast integration (SPAT/MAP outward to approaching vehicles)
 
 ## Phase 12 — `tpt-t-urban-edge` (`no_std`, bare-metal/RTOS)
+> Status: `no_std` actuation limiter, watchdog, and dual-channel failover are
+> done, and the crate builds for `thumbv7em-none-eabihf`. Open: bare-metal
+> drivers, CAN/Ethernet actuation, and validation on other target platforms.
 - [ ] Bare-metal/RTOS execution layer for vehicle actuation
 - [ ] Direct, deterministic steer-by-wire control
 - [ ] Direct, deterministic brake-by-wire control
@@ -207,6 +229,10 @@ hardware bring-up → hardening/release.
 - [ ] End-to-end deterministic max-latency measurement and budget sign-off
 
 ## Phase 14 — `tpt-t-urban-teleop` (adapter crate)
+> Status: the teleop safety state machine and the gated command adapter (mode,
+> traffic law, actuator limits, privacy redaction) are done. Open: implementing
+> `DomainTeleopInterface`, which is blocked on `tpt-t-domain-bridge` in the
+> `tpt-teleop` repository.
 - [ ] Depend on `tpt-t-domain-bridge` (Phase 1) and implement
       `DomainTeleopInterface`
 - [ ] Implement `on_teleop_engage`/`on_teleop_disengage` handover triggered
@@ -229,6 +255,9 @@ hardware bring-up → hardening/release.
       tracked upstream — same open item as sister repos)
 
 ## Phase 15 — `tpt-t-urban-sim` + Visualizer
+> Status: a kinematic bicycle plant and a crossing-pedestrian scenario (noisy
+> measurements → IMM → guardian → plant) are done. Open: 3D city, sensor
+> raycasting, V2X traffic injection, and the egui visualizer.
 - [ ] Headless simulator: high-fidelity 3D city environments with dynamic
       traffic, pedestrians, and cyclists driven by realistic behavioral
       models
@@ -250,6 +279,9 @@ hardware bring-up → hardening/release.
 - [ ] Visualizer: V2X message reception and range visualization
 
 ## Phase 16 — System Integration & End-to-End
+> Status: a crossing-pedestrian chain test (sim, predict, safety) is done. Open:
+> the full last-mile flow from departure to audit log, and the cross-crate
+> allocation audit.
 - [ ] Full "Last-Mile Urban Delivery" data-flow test (spec.txt §6):
       departure → SPAT-driven smooth speed adjustment approaching an
       intersection → GNSS urban-canyon anomaly with seamless LiDAR fallback
@@ -296,9 +328,12 @@ hardware bring-up → hardening/release.
       delivery route or robotaxi loop, start to finish
 
 ## Phase 19 — Hardening, Docs & v1.0.0 Release
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings` clean
+> Status: workspace clippy, nightly clippy for predict and privacy, and a
+> random-input decoder test are done. Open: coverage-guided fuzzing, the parse
+> and blur benchmarks, and the docs and release steps.
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` clean
       (stable workspace)
-- [ ] Nightly clippy pass clean for `tpt-t-urban-predict` and
+- [x] Nightly clippy pass clean for `tpt-t-urban-predict` and
       `tpt-t-urban-privacy`
 - [ ] Performance benchmarks validated against every spec target: <10µs BSM
       parse, <50µs compliance FSM eval, <2ms/frame predict, <3ms privacy
