@@ -366,8 +366,14 @@ version = "0.1.0"
 name = "tpt-t-urban-sim"
 version = "0.1.0"
 dependencies = [
+ "ring",
+ "tpt-t-urban-car",
+ "tpt-t-urban-compliance",
+ "tpt-t-urban-delivery",
  "tpt-t-urban-predict",
+ "tpt-t-urban-privacy",
  "tpt-t-urban-safety",
+ "tpt-t-urban-v2x",
 ]
 
 [[package]]
