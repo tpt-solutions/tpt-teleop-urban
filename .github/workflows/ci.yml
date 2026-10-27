@@ -51,4 +51,4 @@ jobs:
       - name: Build and test SIMD crates
         env:
           RUSTFLAGS: -D warnings
-        run: cargo test -p tpt-t-urban-predict -p tpt-t-urban-privacy
+        run: cargo test -p tpt-t-urban-predict --features simd -p tpt-t-urban-privacy

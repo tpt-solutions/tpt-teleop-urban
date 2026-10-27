@@ -9,3 +9,7 @@ authors.workspace = true
 publish = false
 
 [dependencies]
+
+[features]
+# Eight-wide portable_simd kernels. Requires a nightly toolchain.
+simd = []
