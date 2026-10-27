@@ -1,4 +1,22 @@
 //! Bare-metal/RTOS actuation layer: steer-by-wire, brake-by-wire, throttle, and watchdog.
 //!
-//! Stub: implementation is tracked in `todo.md` (Phase 12). This crate becomes
-//! `no_std` in that phase.
+//! This crate is `no_std`. It builds for embedded targets such as
+//! `thumbv7em-none-eabihf`.
+//!
+//! - [`actuator`]: clamps and rate-limits steering, brake and throttle commands.
+//! - [`watchdog`]: software watchdog with a latched expiry.
+//! - [`failover`]: dual-channel steering failover with requalification.
+//!
+//! Hardware bring-up (Phase 18) and the real-time task layout (Phase 13) are not
+//! part of this crate.
+
+#![cfg_attr(not(test), no_std)]
+#![deny(unsafe_op_in_unsafe_fn)]
+
+pub mod actuator;
+pub mod failover;
+pub mod watchdog;
+
+pub use actuator::{Actuation, Limiter};
+pub use failover::{Channel, Failover, NoChannel};
+pub use watchdog::{State as WatchdogState, Watchdog};
