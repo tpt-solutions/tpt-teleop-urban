@@ -69,12 +69,12 @@ hardware bring-up → hardening/release.
       depend on it (path dep during co-development)
 
 ## Phase 2 — `tpt-t-urban-core`
-- [ ] Central deterministic event loop
-- [ ] Vehicle state machine: Parked → Routing → Driving → Stopped → Emergency
-- [ ] Lock-free message bus for inter-crate event routing
-- [ ] rkyv wire-type prelude shared by other urban crates
-- [ ] Zero-lock hot-path audit passes (reuse `tools/lock-audit.sh` pattern
-      from sister repos)
+- [x] Central deterministic event loop
+- [x] Vehicle state machine: Parked → Routing → Driving → Stopped → Emergency
+- [x] Lock-free message bus for inter-crate event routing
+- [x] rkyv wire-type prelude shared by other urban crates
+- [x] Zero-lock hot-path audit passes (`tools/lock-audit.sh`; sister-repo
+      script was not on disk, so this one was written fresh)
 
 ## Phase 3 — `tpt-t-urban-v2x`
 - [ ] Zero-copy ASN.1 UPER parser reading raw UDP packets from the C-V2X
