@@ -8,3 +8,5 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+tpt-t-urban-predict = { workspace = true }
+tpt-t-urban-safety = { workspace = true }
