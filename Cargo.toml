@@ -1,0 +1,46 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/tpt-t-urban-core",
+    "crates/tpt-t-urban-v2x",
+    "crates/tpt-t-urban-perception",
+    "crates/tpt-t-urban-predict",
+    "crates/tpt-t-urban-compliance",
+    "crates/tpt-t-urban-safety",
+    "crates/tpt-t-urban-privacy",
+    "crates/tpt-t-urban-car",
+    "crates/tpt-t-urban-delivery",
+    "crates/tpt-t-urban-traffic",
+    "crates/tpt-t-urban-edge",
+    "crates/tpt-t-urban-teleop",
+    "crates/tpt-t-urban-sim",
+]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.97.0"
+license = "MIT OR Apache-2.0"
+authors = ["TPT Solutions"]
+description = "tpt-teleop-urban: smart city and autonomous vehicle operations middleware"
+
+[workspace.dependencies]
+# Zero-copy serialization for every wire type (spec §7).
+rkyv = "0.8"
+# Ed25519 signatures and SHA-256 for the audit ledger (spec §7). Dual-licensed
+# ring is the one permitted Apache-2.0 exception, see deny.toml.
+ring = "0.17"
+
+# Internal crates. Consumers use `tpt-t-urban-*.workspace = true`.
+tpt-t-urban-core = { path = "crates/tpt-t-urban-core" }
+tpt-t-urban-v2x = { path = "crates/tpt-t-urban-v2x" }
+tpt-t-urban-perception = { path = "crates/tpt-t-urban-perception" }
+tpt-t-urban-predict = { path = "crates/tpt-t-urban-predict" }
+tpt-t-urban-compliance = { path = "crates/tpt-t-urban-compliance" }
+tpt-t-urban-safety = { path = "crates/tpt-t-urban-safety" }
+tpt-t-urban-privacy = { path = "crates/tpt-t-urban-privacy" }
+tpt-t-urban-car = { path = "crates/tpt-t-urban-car" }
+tpt-t-urban-delivery = { path = "crates/tpt-t-urban-delivery" }
+tpt-t-urban-traffic = { path = "crates/tpt-t-urban-traffic" }
+tpt-t-urban-edge = { path = "crates/tpt-t-urban-edge" }
+tpt-t-urban-teleop = { path = "crates/tpt-t-urban-teleop" }
+tpt-t-urban-sim = { path = "crates/tpt-t-urban-sim" }
