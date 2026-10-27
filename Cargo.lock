@@ -338,6 +338,9 @@ dependencies = [
 [[package]]
 name = "tpt-t-urban-delivery"
 version = "0.1.0"
+dependencies = [
+ "ring",
+]
 
 [[package]]
 name = "tpt-t-urban-edge"
@@ -362,10 +365,19 @@ version = "0.1.0"
 [[package]]
 name = "tpt-t-urban-sim"
 version = "0.1.0"
+dependencies = [
+ "tpt-t-urban-predict",
+ "tpt-t-urban-safety",
+]
 
 [[package]]
 name = "tpt-t-urban-teleop"
 version = "0.1.0"
+dependencies = [
+ "tpt-t-urban-compliance",
+ "tpt-t-urban-edge",
+ "tpt-t-urban-privacy",
+]
 
 [[package]]
 name = "tpt-t-urban-traffic"

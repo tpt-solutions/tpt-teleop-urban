@@ -46,6 +46,9 @@ deny = [
 ]
 multiple-versions = "warn"
 wildcards = "deny"
+# Workspace crates are `publish = false` and depend on each other by path
+# with `workspace = true`. Those path dependencies have no version by design.
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"
