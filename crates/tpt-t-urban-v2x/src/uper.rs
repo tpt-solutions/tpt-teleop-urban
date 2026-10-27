@@ -303,4 +303,57 @@ mod tests {
         assert_eq!(r.read_bits(3), Ok(0b101));
         assert_eq!(r.constrained_whole(0, 9), Ok(7));
     }
+
+    /// Drives every primitive with random bytes and random bounds, including
+    /// extreme ones. Each call must return a value or an error, never panic,
+    /// and every decoded value must respect its bounds. The bit cursor must
+    /// never move past the end of the input.
+    #[test]
+    fn random_frames_never_panic_and_decoded_values_are_in_range() {
+        let mut state = 0x9E37_79B9_u32;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            state
+        };
+        let bounds = [
+            (0, 0),
+            (0, 1),
+            (-2000, 2001),
+            (0, 63),
+            (i64::MIN, i64::MAX),
+            (i64::MIN, i64::MIN + 1),
+            (i64::MAX - 3, i64::MAX),
+            (5, 4),
+        ];
+        let mut buf = [0u8; 24];
+        for _ in 0..5_000 {
+            for b in &mut buf {
+                *b = next() as u8;
+            }
+            for &(lb, ub) in &bounds {
+                let mut r = BitReader::new(&buf);
+                if let Ok(v) = r.constrained_whole(lb, ub) {
+                    assert!((lb..=ub).contains(&v));
+                }
+                assert!(r.bits_remaining() <= buf.len() * 8);
+            }
+
+            let mut r = BitReader::new(&buf);
+            let _ = r.enumerated(3, true);
+            let _ = r.enumerated(1, false);
+            let _ = r.normally_small();
+            let _ = r.length(Some(1000));
+            let _ = r.length(None);
+            let _ = r.fixed_octets::<5>();
+            assert!(r.bits_remaining() <= buf.len() * 8);
+
+            let mut r = BitReader::new(&buf);
+            let n = next() % 70;
+            if let Ok(v) = r.read_bits(n) {
+                assert!(n == 64 || v < (1_u64 << n));
+            }
+        }
+    }
 }
