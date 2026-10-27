@@ -1,0 +1,52 @@
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+# Only the MIT/BSD/ISC chain is allowed. "Apache-2.0" is deliberately absent:
+# dual-licensed `MIT OR Apache-2.0` crates still pass via MIT, while Apache-only
+# crates fail unless listed in `exceptions` below.
+allow = [
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "BSL-1.0",
+    "CC0-1.0",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.8
+exceptions = [
+    # `ring` (Ed25519, SHA-256 for the audit ledger) is `Apache-2.0 AND ISC`.
+    # It is the only Apache-only dependency the spec permits (spec §7).
+    { allow = ["Apache-2.0", "ISC"], crate = "ring" },
+]
+
+[bans]
+# Dependency matrix (spec §7): each banned crate has a custom replacement.
+deny = [
+    # Heavy ASN.1 compilers, replaced by the zero-copy UPER parser.
+    { crate = "asn1-rs" },
+    # Serialization, replaced by rkyv.
+    { crate = "serde" },
+    { crate = "serde_json" },
+    { crate = "bincode" },
+    { crate = "prost" },
+    # Async runtime and channels, replaced by the thread-per-core model and
+    # the tpt-teleop-ring lock-free queues.
+    { crate = "tokio" },
+    { crate = "crossbeam" },
+    { crate = "crossbeam-channel" },
+    # TLS, replaced by ring-based primitives.
+    { crate = "openssl" },
+    { crate = "openssl-sys" },
+    { crate = "rustls" },
+]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
