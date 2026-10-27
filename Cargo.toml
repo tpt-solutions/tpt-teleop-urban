@@ -24,6 +24,9 @@ authors = ["TPT Solutions"]
 description = "tpt-teleop-urban: smart city and autonomous vehicle operations middleware"
 
 [workspace.dependencies]
+# Upstream teleop core: the StateMachine, Mode and ControlCommand the urban
+# adapter implements against. Pinned to a commit so builds are reproducible.
+tpt-t-core = { git = "https://github.com/tpt-solutions/tpt-teleop", rev = "216427ce7c65fcb6492163418fb40f741082c16a" }
 # Zero-copy serialization for every wire type (spec §7).
 rkyv = "0.8"
 # Ed25519 signatures and SHA-256 for the audit ledger (spec §7). Dual-licensed
