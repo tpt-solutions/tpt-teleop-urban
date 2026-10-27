@@ -12,4 +12,6 @@ publish = false
 tpt-t-urban-compliance = { workspace = true }
 tpt-t-urban-edge = { workspace = true }
 tpt-t-urban-privacy = { workspace = true }
+tpt-t-urban-safety = { workspace = true }
 tpt-t-core = { workspace = true }
+tpt-t-domain-bridge = { workspace = true }

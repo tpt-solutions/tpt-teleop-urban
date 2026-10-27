@@ -8,7 +8,7 @@
 # Run from the repository root: tools/lock-audit.sh
 set -euo pipefail
 
-HOT_PATH_CRATES=(core safety compliance edge)
+HOT_PATH_CRATES=(core safety compliance edge teleop)
 FORBIDDEN='std::sync::(Mutex|RwLock|Condvar|mpsc)|parking_lot|\bMutex\b|\bRwLock\b|tokio|crossbeam|async fn|\.await\b'
 
 status=0

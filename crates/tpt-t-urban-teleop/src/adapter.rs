@@ -10,23 +10,33 @@
 //!    adapter acts on the machine, not on what the operator's side believes.
 //!    `Auto` refuses operator input. `Assist` passes steering only, because the
 //!    upstream blending model (spec §5.4) is not implemented yet. `FullTeleop`
-//!    drives directly. `EmergencyStop` brakes fully and latches.
+//!    drives directly. `EmergencyStop` latches, and applies full brake and zero
+//!    throttle at once. It bypasses the slew limit, because a stop is the one
+//!    command where delay costs more than a jerk.
 //! 3. **Traffic law**: the latest `compliance` decision caps the result. `Stop`
 //!    and `Yield` brake, and `Decelerate` removes throttle.
-//! 4. **Actuator limits**: the `edge` limiter clamps and rate-limits the result.
+//! 4. **Guardian**: while the `safety` guardian holds AEB or MRM, throttle is
+//!    removed and the brake is applied in full, whatever the operator asks.
+//! 5. **Actuator limits**: the `edge` limiter clamps and rate-limits the result.
 //!
 //! Video leaves the vehicle only through `privacy::Redactor`.
 //!
-//! The DomainTeleopInterface trait from the bridge spec is not in upstream
-//! tpt-teleop yet. Its `on_control_command` maps to
-//! [`TeleopAdapter::on_control_command`] here.
+//! [`TeleopAdapter`] implements the upstream [`DomainTeleopInterface`] from
+//! `tpt-t-domain-bridge`. The trait's `on_control_command` runs the gates above
+//! through [`TeleopAdapter::apply_command`]. Lifecycle calls (engage, disengage,
+//! emergency stop) arrive through a `DomainSession`, which enforces the order.
 
 use tpt_t_core::ser::cmd::{ControlCommand, MAGIC_COMMAND};
 use tpt_t_core::{Mode, ModeError, StateMachine};
+use tpt_t_domain_bridge::wire::{FAULT_SENSOR, HapticFeedback};
+use tpt_t_domain_bridge::{
+    DomainError, DomainState, DomainTeleopInterface, OperatorId, Pose6DOF, SensorFeed,
+};
 use tpt_t_urban_compliance::Decision;
 use tpt_t_urban_edge::actuator::{MAX_PERMILLE, MAX_STEER_CDEG};
 use tpt_t_urban_edge::{Actuation, Limiter};
 use tpt_t_urban_privacy::{Frame, FrameError, Rect, RedactedFrame, Redactor};
+use tpt_t_urban_safety::{Command as GuardianCommand, Mode as GuardianMode};
 
 /// Brake applied when the traffic-law decision is `Stop` or `Yield`, permille.
 pub const LAW_STOP_BRAKE_PERMILLE: u16 = 1_000;
@@ -53,13 +63,22 @@ pub enum CommandError {
     NotActive,
 }
 
-/// Teleop adapter for one vehicle.
+/// Teleop adapter for one vehicle. Implements [`DomainTeleopInterface`].
 #[derive(Debug)]
 pub struct TeleopAdapter {
     machine: StateMachine,
     law: Decision,
     limiter: Limiter,
     last_seq: Option<u64>,
+    /// Operator holding the vehicle, set by `on_teleop_engage`.
+    operator: Option<OperatorId>,
+    /// Output of the last accepted command, handed to the actuators.
+    actuation: Option<Actuation>,
+    /// The guardian's latest mode. AEB or MRM overrides the operator.
+    guardian: GuardianMode,
+    /// Domain state reported upward. Starts as a sensor fault until
+    /// [`TeleopAdapter::update_state`] supplies a real estimate.
+    state: DomainState,
 }
 
 impl Default for TeleopAdapter {
@@ -77,7 +96,28 @@ impl TeleopAdapter {
             law: Decision::Proceed,
             limiter: Limiter::new(),
             last_seq: None,
+            operator: None,
+            actuation: None,
+            guardian: GuardianMode::Nominal,
+            state: DomainState {
+                timestamp_us: 0,
+                pose: Pose6DOF::IDENTITY,
+                battery_pct: 0.0,
+                fault_flags: FAULT_SENSOR,
+            },
         }
+    }
+
+    /// Replaces the reported domain state with a fresh estimate from
+    /// perception and localization.
+    pub fn update_state(&mut self, state: DomainState) {
+        self.state = state;
+    }
+
+    /// The actuator values from the last accepted command, if any.
+    #[must_use]
+    pub fn last_actuation(&self) -> Option<Actuation> {
+        self.actuation
     }
 
     /// Current mode.
@@ -104,7 +144,7 @@ impl TeleopAdapter {
 
     /// Maps one command to actuator values, or refuses it. A refused command
     /// leaves the replay counter unchanged.
-    pub fn on_control_command(&mut self, cmd: &ControlCommand) -> Result<Actuation, CommandError> {
+    pub fn apply_command(&mut self, cmd: &ControlCommand) -> Result<Actuation, CommandError> {
         if cmd.magic != MAGIC_COMMAND || cmd.version != 1 {
             return Err(CommandError::Malformed);
         }
@@ -121,7 +161,7 @@ impl TeleopAdapter {
 
         let current = self.machine.current();
         if current == Mode::EmergencyStop {
-            return Ok(self.limiter.apply(0, MAX_PERMILLE, 0));
+            return Ok(self.limiter.emergency_brake());
         }
         if commanded != current {
             return Err(CommandError::ModeMismatch { current });
@@ -154,7 +194,18 @@ impl TeleopAdapter {
                 brake = LAW_STOP_BRAKE_PERMILLE;
             }
         }
+        // The guardian overrides the operator while it holds AEB or MRM. Throttle
+        // is removed and the brake is applied in full, whatever the operator asks.
+        if self.guardian != GuardianMode::Nominal {
+            throttle = 0;
+            brake = LAW_STOP_BRAKE_PERMILLE;
+        }
         Ok(self.limiter.apply(steer, brake, throttle))
+    }
+
+    /// Records the guardian's latest override. Call once per control cycle.
+    pub fn set_guardian(&mut self, command: &GuardianCommand) {
+        self.guardian = command.mode;
     }
 
     /// Redacts a camera frame before it is sent to the operator. Takes ownership
@@ -166,6 +217,70 @@ impl TeleopAdapter {
         scratch: &mut [u8],
     ) -> Result<RedactedFrame<'a>, FrameError> {
         Redactor::new(REDACT_RADIUS).redact(frame, detections, scratch)
+    }
+}
+
+/// The bridge error for a refused command. The message is static, so a refusal
+/// does not allocate.
+fn refusal(error: CommandError) -> DomainError {
+    DomainError::adapter(match error {
+        CommandError::Malformed => "command malformed or from an unknown protocol version",
+        CommandError::Replay => "command sequence did not increase",
+        CommandError::ModeMismatch { .. } => "command was made for a mode the vehicle is not in",
+        CommandError::NotActive => "vehicle is in autonomy and takes no operator input",
+    })
+}
+
+impl DomainTeleopInterface for TeleopAdapter {
+    fn on_teleop_engage(&mut self, operator: OperatorId) -> tpt_t_domain_bridge::Result<()> {
+        if self.operator.is_some() {
+            return Err(DomainError::adapter(
+                "an operator already holds the vehicle",
+            ));
+        }
+        self.operator = Some(operator);
+        Ok(())
+    }
+
+    fn on_teleop_disengage(&mut self) -> tpt_t_domain_bridge::Result<()> {
+        self.operator
+            .take()
+            .map(|_| ())
+            .ok_or_else(|| DomainError::adapter("no operator holds the vehicle"))
+    }
+
+    fn on_control_command(&mut self, cmd: ControlCommand) -> tpt_t_domain_bridge::Result<()> {
+        if self.operator.is_none() {
+            return Err(DomainError::adapter(
+                "command received with no operator engaged",
+            ));
+        }
+        let actuation = self.apply_command(&cmd).map_err(refusal)?;
+        self.actuation = Some(actuation);
+        Ok(())
+    }
+
+    fn get_domain_state(&self) -> DomainState {
+        self.state
+    }
+
+    fn get_sensor_feed(&mut self) -> SensorFeed {
+        SensorFeed {
+            timestamp_us: self.state.timestamp_us,
+            video_frames: Vec::new(),
+            point_clouds: Vec::new(),
+            telemetry: self.state,
+            haptic_data: HapticFeedback {
+                force_torque: [0.0; 6],
+            },
+            audio: None,
+        }
+    }
+
+    fn on_emergency_stop(&mut self) {
+        self.emergency_stop();
+        self.actuation = Some(self.limiter.emergency_brake());
+        self.operator = None;
     }
 }
 
@@ -193,7 +308,7 @@ mod tests {
     fn auto_refuses_operator_input() {
         let mut a = TeleopAdapter::new();
         assert_eq!(
-            a.on_control_command(&cmd(1, Mode::Auto, 0.0, 0.5)),
+            a.apply_command(&cmd(1, Mode::Auto, 0.0, 0.5)),
             Err(CommandError::NotActive)
         );
     }
@@ -209,7 +324,7 @@ mod tests {
     fn full_teleop_throttle_is_rate_limited() {
         let mut a = teleop();
         let out = a
-            .on_control_command(&cmd(1, Mode::FullTeleop, 0.0, 1.0))
+            .apply_command(&cmd(1, Mode::FullTeleop, 0.0, 1.0))
             .unwrap();
         assert_eq!(
             out.throttle_permille,
@@ -222,7 +337,7 @@ mod tests {
     fn negative_pedal_brakes_and_steering_follows_roll_axis() {
         let mut a = teleop();
         let out = a
-            .on_control_command(&cmd(1, Mode::FullTeleop, 1.0, -1.0))
+            .apply_command(&cmd(1, Mode::FullTeleop, 1.0, -1.0))
             .unwrap();
         assert!(out.brake_permille > 0);
         assert!(out.steer_cdeg > 0);
@@ -233,9 +348,7 @@ mod tests {
         let a = TeleopAdapter::new();
         a.request_mode(Mode::Assist).unwrap();
         let mut a = a;
-        let out = a
-            .on_control_command(&cmd(1, Mode::Assist, 0.5, 1.0))
-            .unwrap();
+        let out = a.apply_command(&cmd(1, Mode::Assist, 0.5, 1.0)).unwrap();
         assert_eq!(out.throttle_permille, 0);
         assert!(out.steer_cdeg > 0);
     }
@@ -243,14 +356,14 @@ mod tests {
     #[test]
     fn replayed_or_out_of_order_commands_are_refused() {
         let mut a = teleop();
-        a.on_control_command(&cmd(5, Mode::FullTeleop, 0.0, 0.0))
+        a.apply_command(&cmd(5, Mode::FullTeleop, 0.0, 0.0))
             .unwrap();
         assert_eq!(
-            a.on_control_command(&cmd(5, Mode::FullTeleop, 0.0, 0.0)),
+            a.apply_command(&cmd(5, Mode::FullTeleop, 0.0, 0.0)),
             Err(CommandError::Replay)
         );
         assert_eq!(
-            a.on_control_command(&cmd(4, Mode::FullTeleop, 0.0, 0.0)),
+            a.apply_command(&cmd(4, Mode::FullTeleop, 0.0, 0.0)),
             Err(CommandError::Replay)
         );
     }
@@ -259,7 +372,7 @@ mod tests {
     fn command_for_a_stale_mode_is_refused() {
         let mut a = teleop();
         assert_eq!(
-            a.on_control_command(&cmd(1, Mode::Assist, 0.0, 0.0)),
+            a.apply_command(&cmd(1, Mode::Assist, 0.0, 0.0)),
             Err(CommandError::ModeMismatch {
                 current: Mode::FullTeleop
             })
@@ -271,25 +384,22 @@ mod tests {
         let mut a = teleop();
         let mut bad = cmd(3, Mode::FullTeleop, 0.0, 0.0);
         bad.magic = 0;
-        assert_eq!(a.on_control_command(&bad), Err(CommandError::Malformed));
-        assert!(
-            a.on_control_command(&cmd(3, Mode::FullTeleop, 0.0, 0.0))
-                .is_ok()
-        );
+        assert_eq!(a.apply_command(&bad), Err(CommandError::Malformed));
+        assert!(a.apply_command(&cmd(3, Mode::FullTeleop, 0.0, 0.0)).is_ok());
     }
 
     #[test]
     fn operator_estop_latches_and_brakes_in_any_mode() {
         let mut a = teleop();
         let out = a
-            .on_control_command(&cmd(1, Mode::EmergencyStop, 0.0, 1.0))
+            .apply_command(&cmd(1, Mode::EmergencyStop, 0.0, 1.0))
             .unwrap();
         assert_eq!(a.mode(), Mode::EmergencyStop);
         assert!(out.brake_permille > 0);
         assert_eq!(out.throttle_permille, 0);
         // Further drive commands are still braked, never throttled.
         let later = a
-            .on_control_command(&cmd(2, Mode::FullTeleop, 0.0, 1.0))
+            .apply_command(&cmd(2, Mode::FullTeleop, 0.0, 1.0))
             .unwrap();
         assert_eq!(later.throttle_permille, 0);
     }
@@ -301,7 +411,7 @@ mod tests {
         let mut out = Actuation::default();
         for seq in 1..=12 {
             out = a
-                .on_control_command(&cmd(seq, Mode::FullTeleop, 0.0, 1.0))
+                .apply_command(&cmd(seq, Mode::FullTeleop, 0.0, 1.0))
                 .unwrap();
         }
         assert_eq!(out.throttle_permille, 0);

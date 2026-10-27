@@ -91,6 +91,20 @@ impl Limiter {
         };
         self.last
     }
+
+    /// Full brake and zero throttle at once, bypassing the slew limit. Steering
+    /// holds its last value so the stop does not also turn the wheel.
+    ///
+    /// For emergency stops only. Ordinary braking goes through [`Limiter::apply`]
+    /// so it stays smooth.
+    pub fn emergency_brake(&mut self) -> Actuation {
+        self.last = Actuation {
+            steer_cdeg: self.last.steer_cdeg,
+            brake_permille: MAX_PERMILLE,
+            throttle_permille: 0,
+        };
+        self.last
+    }
 }
 
 #[cfg(test)]

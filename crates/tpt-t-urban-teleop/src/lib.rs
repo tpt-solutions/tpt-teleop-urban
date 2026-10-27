@@ -4,12 +4,14 @@
 //!   gated by the upstream mode machine, traffic law, and actuator limits, and
 //!   redacts video before it leaves the vehicle.
 //!
-//! Built on tpt-teleop's `tpt-t-core` (pinned git dependency). The
-//! `DomainTeleopInterface` trait in the bridge spec is not in upstream yet, so
-//! the adapter exposes the same operations as plain methods.
+//! [`TeleopAdapter`] implements `DomainTeleopInterface` from the upstream
+//! `tpt-t-domain-bridge` crate. Wrap it in a `DomainSession` to get the
+//! handover lifecycle.
 
 pub mod adapter;
+pub mod handover;
 
-pub use adapter::{CommandError, TeleopAdapter};
+pub use adapter::{AXIS_STEERING, AXIS_THROTTLE, CommandError, TeleopAdapter};
+pub use handover::{assistance_reason, clear_mrm, ready_to_return};
 pub use tpt_t_core::ser::ControlCommand;
 pub use tpt_t_core::{Mode, StateMachine};

@@ -320,7 +320,7 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 [[package]]
 name = "tpt-t-core"
 version = "1.0.0"
-source = "git+https://github.com/tpt-solutions/tpt-teleop?rev=216427ce7c65fcb6492163418fb40f741082c16a#216427ce7c65fcb6492163418fb40f741082c16a"
+source = "git+https://github.com/tpt-solutions/tpt-teleop?rev=198c3fa2eabeebc735106123f571c830237d05c2#198c3fa2eabeebc735106123f571c830237d05c2"
 dependencies = [
  "libc",
  "rkyv",
@@ -329,9 +329,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tpt-t-domain-bridge"
+version = "1.0.0"
+source = "git+https://github.com/tpt-solutions/tpt-teleop?rev=198c3fa2eabeebc735106123f571c830237d05c2#198c3fa2eabeebc735106123f571c830237d05c2"
+dependencies = [
+ "rkyv",
+ "tpt-t-core",
+]
+
+[[package]]
 name = "tpt-t-ring"
 version = "1.0.0"
-source = "git+https://github.com/tpt-solutions/tpt-teleop?rev=216427ce7c65fcb6492163418fb40f741082c16a#216427ce7c65fcb6492163418fb40f741082c16a"
+source = "git+https://github.com/tpt-solutions/tpt-teleop?rev=198c3fa2eabeebc735106123f571c830237d05c2#198c3fa2eabeebc735106123f571c830237d05c2"
 
 [[package]]
 name = "tpt-t-urban-car"
@@ -397,9 +406,11 @@ name = "tpt-t-urban-teleop"
 version = "0.1.0"
 dependencies = [
  "tpt-t-core",
+ "tpt-t-domain-bridge",
  "tpt-t-urban-compliance",
  "tpt-t-urban-edge",
  "tpt-t-urban-privacy",
+ "tpt-t-urban-safety",
 ]
 
 [[package]]
