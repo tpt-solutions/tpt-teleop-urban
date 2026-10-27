@@ -1,0 +1,10 @@
+[package]
+name = "tpt-t-urban-perception"
+version = "0.1.0"
+description = "Multi-sensor fusion, 3D object detection, tracking, and GNSS anomaly handling."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]

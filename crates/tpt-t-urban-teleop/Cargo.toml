@@ -1,0 +1,10 @@
+[package]
+name = "tpt-t-urban-teleop"
+version = "0.1.0"
+description = "Adapter implementing tpt-teleop's DomainTeleopInterface for urban vehicles."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]

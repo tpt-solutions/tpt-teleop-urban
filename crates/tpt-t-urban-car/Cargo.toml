@@ -1,0 +1,10 @@
+[package]
+name = "tpt-t-urban-car"
+version = "0.1.0"
+description = "Trajectory planning, speed profiling, and kinematic control for 4-wheel vehicles."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]

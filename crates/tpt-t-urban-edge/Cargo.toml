@@ -1,0 +1,10 @@
+[package]
+name = "tpt-t-urban-edge"
+version = "0.1.0"
+description = "Bare-metal/RTOS actuation layer: steer-by-wire, brake-by-wire, throttle, and watchdog."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
