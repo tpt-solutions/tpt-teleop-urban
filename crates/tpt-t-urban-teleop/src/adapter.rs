@@ -1,64 +1,65 @@
-//! Teleop adapter: turns operator commands into actuator commands, subject to the
-//! vehicle's own safety rules.
+//! Teleop adapter: the urban vehicle's side of tpt-teleop's control protocol.
 //!
-//! Every operator command passes through three gates before it reaches an
-//! actuator:
+//! The adapter takes the upstream [`ControlCommand`] (tpt-teleop-core,
+//! `ser::cmd`) and the upstream [`StateMachine`] (`machine`), and turns them into
+//! actuator commands. Each command passes these gates, in order:
 //!
-//! 1. **Mode**: only `TeleopActive` accepts commands. An emergency stop overrides
-//!    everything.
-//! 2. **Traffic law**: the latest `compliance` decision caps the command. A
-//!    `Stop` or `Yield` brakes, a `Decelerate` removes throttle.
-//! 3. **Actuator limits**: the `edge` limiter clamps and rate-limits the result.
+//! 1. **Wire check**: magic, version, and a strictly increasing `seq`. A replayed
+//!    or malformed command is refused.
+//! 2. **Mode**: the command's mode must match the machine's current mode. The
+//!    adapter acts on the machine, not on what the operator's side believes.
+//!    `Auto` refuses operator input. `Assist` passes steering only, because the
+//!    upstream blending model (spec §5.4) is not implemented yet. `FullTeleop`
+//!    drives directly. `EmergencyStop` brakes fully and latches.
+//! 3. **Traffic law**: the latest `compliance` decision caps the result. `Stop`
+//!    and `Yield` brake, and `Decelerate` removes throttle.
+//! 4. **Actuator limits**: the `edge` limiter clamps and rate-limits the result.
 //!
-//! Video leaves the vehicle only through `privacy::Redactor`, so the operator
-//! never receives an unblurred frame.
+//! Video leaves the vehicle only through `privacy::Redactor`.
 //!
-//! The adapter is written against the teleop mode machine and the vehicle
-//! crates in this workspace. The `DomainTeleopInterface` trait from
-//! `tpt-t-domain-bridge` (in the `tpt-teleop` repository) is not a dependency
-//! yet. Once that crate is available, the methods here become its trait impl.
+//! The DomainTeleopInterface trait from the bridge spec is not in upstream
+//! tpt-teleop yet. Its `on_control_command` maps to
+//! [`TeleopAdapter::on_control_command`] here.
 
+use tpt_t_core::ser::cmd::{ControlCommand, MAGIC_COMMAND};
+use tpt_t_core::{Mode, ModeError, StateMachine};
 use tpt_t_urban_compliance::Decision;
+use tpt_t_urban_edge::actuator::{MAX_PERMILLE, MAX_STEER_CDEG};
 use tpt_t_urban_edge::{Actuation, Limiter};
 use tpt_t_urban_privacy::{Frame, FrameError, Rect, RedactedFrame, Redactor};
-
-use crate::state::{Event, InvalidEvent, Mode, transition};
 
 /// Brake applied when the traffic-law decision is `Stop` or `Yield`, permille.
 pub const LAW_STOP_BRAKE_PERMILLE: u16 = 1_000;
 /// Brake applied when the traffic-law decision is `Decelerate`, permille.
 pub const LAW_DECEL_BRAKE_PERMILLE: u16 = 300;
+/// Blur radius for operator video, pixels.
+pub const REDACT_RADIUS: usize = 3;
 
-/// Normalized command from the operator, in `-1.0..=1.0`.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ControlCommand {
-    pub timestamp_us: u64,
-    /// Operator of record, e.g. a 128-bit session id.
-    pub operator_id: [u8; 16],
-    /// Steering: -1 is full left, +1 full right.
-    pub steering: f32,
-    /// Pedal: positive is throttle, negative is brake.
-    pub pedal: f32,
-    /// Operator pressed the emergency stop.
-    pub estop: bool,
-}
+/// Index of the roll axis in `ControlCommand::axes`, used as steering.
+pub const AXIS_STEERING: usize = 0;
+/// Index of the throttle axis, positive throttle and negative brake.
+pub const AXIS_THROTTLE: usize = 3;
 
 /// Why a command was refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandError {
-    /// The vehicle is not in `TeleopActive`.
+    /// Wrong magic or version, or an unknown mode value.
+    Malformed,
+    /// `seq` did not increase, so the command is a replay or out of order.
+    Replay,
+    /// The command was authored for a mode that is no longer current.
+    ModeMismatch { current: Mode },
+    /// The machine is in `Auto`, where operator input is not accepted.
     NotActive,
-    /// The operator id does not match the engaged operator.
-    WrongOperator,
 }
 
 /// Teleop adapter for one vehicle.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct TeleopAdapter {
-    mode: Mode,
-    operator: Option<[u8; 16]>,
+    machine: StateMachine,
     law: Decision,
     limiter: Limiter,
+    last_seq: Option<u64>,
 }
 
 impl Default for TeleopAdapter {
@@ -68,34 +69,32 @@ impl Default for TeleopAdapter {
 }
 
 impl TeleopAdapter {
+    /// A new adapter in `Mode::Auto`, with the spec-default transition table.
     #[must_use]
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
-            mode: Mode::Autonomous,
-            operator: None,
+            machine: StateMachine::new(),
             law: Decision::Proceed,
             limiter: Limiter::new(),
+            last_seq: None,
         }
     }
 
+    /// Current mode.
     #[must_use]
-    pub const fn mode(&self) -> Mode {
-        self.mode
+    pub fn mode(&self) -> Mode {
+        self.machine.current()
     }
 
-    /// Applies a state-machine event. Engaging also records the operator.
-    pub fn apply(
-        &mut self,
-        event: Event,
-        operator: Option<[u8; 16]>,
-    ) -> Result<Mode, InvalidEvent> {
-        self.mode = transition(self.mode, event)?;
-        match event {
-            Event::Engage => self.operator = operator,
-            Event::Reset | Event::ReturnComplete | Event::Cancel => self.operator = None,
-            _ => {}
-        }
-        Ok(self.mode)
+    /// Requests a mode change through the transition table. Returns the
+    /// previous mode on success.
+    pub fn request_mode(&self, to: Mode) -> Result<Mode, ModeError> {
+        self.machine.try_transition(to)
+    }
+
+    /// Emergency stop. Bypasses the table and is idempotent.
+    pub fn emergency_stop(&self) -> Mode {
+        self.machine.force_emergency_stop()
     }
 
     /// Records the latest traffic-law decision from `compliance::evaluate`.
@@ -103,27 +102,46 @@ impl TeleopAdapter {
         self.law = decision;
     }
 
-    /// Maps one operator command to actuator values, or refuses it.
-    ///
-    /// An e-stop is always honoured: it moves to `EmergencyStop` and brakes fully,
-    /// whatever mode the adapter was in.
+    /// Maps one command to actuator values, or refuses it. A refused command
+    /// leaves the replay counter unchanged.
     pub fn on_control_command(&mut self, cmd: &ControlCommand) -> Result<Actuation, CommandError> {
-        if cmd.estop {
-            // Event::EStop is valid in every mode, so the transition cannot fail.
-            self.mode = transition(self.mode, Event::EStop).unwrap_or(Mode::EmergencyStop);
-            return Ok(self.limiter.apply(0, MAX_BRAKE, 0));
+        if cmd.magic != MAGIC_COMMAND || cmd.version != 1 {
+            return Err(CommandError::Malformed);
         }
-        if self.mode != Mode::TeleopActive {
-            return Err(CommandError::NotActive);
+        if self.last_seq.is_some_and(|prev| cmd.seq <= prev) {
+            return Err(CommandError::Replay);
         }
-        if self.operator != Some(cmd.operator_id) {
-            return Err(CommandError::WrongOperator);
+        let commanded = cmd.mode().ok_or(CommandError::Malformed)?;
+
+        // An operator E-stop is honoured in any mode, before the mode check.
+        if commanded == Mode::EmergencyStop {
+            self.emergency_stop();
+        }
+        self.last_seq = Some(cmd.seq);
+
+        let current = self.machine.current();
+        if current == Mode::EmergencyStop {
+            return Ok(self.limiter.apply(0, MAX_PERMILLE, 0));
+        }
+        if commanded != current {
+            return Err(CommandError::ModeMismatch { current });
         }
 
-        let steer = (cmd.steering.clamp(-1.0, 1.0) * MAX_STEER_CDEG as f32) as i32;
-        let pedal = cmd.pedal.clamp(-1.0, 1.0);
-        let mut brake = (-pedal * f32::from(MAX_BRAKE)).max(0.0) as u16;
-        let mut throttle = (pedal * f32::from(MAX_BRAKE)).max(0.0) as u16;
+        let steer_axis = cmd.axes[AXIS_STEERING].clamp(-1.0, 1.0);
+        let pedal = cmd.axes[AXIS_THROTTLE].clamp(-1.0, 1.0);
+        let steer = (steer_axis * MAX_STEER_CDEG as f32) as i32;
+        let mut brake = (-pedal * f32::from(MAX_PERMILLE)).max(0.0) as u16;
+        let mut throttle = (pedal * f32::from(MAX_PERMILLE)).max(0.0) as u16;
+
+        match current {
+            Mode::Auto => return Err(CommandError::NotActive),
+            Mode::Assist => {
+                // Blending is not implemented. Steering passes, throttle is held.
+                throttle = 0;
+            }
+            Mode::FullTeleop => {}
+            Mode::EmergencyStop => unreachable!("handled above"),
+        }
 
         match self.law {
             Decision::Proceed => {}
@@ -139,10 +157,8 @@ impl TeleopAdapter {
         Ok(self.limiter.apply(steer, brake, throttle))
     }
 
-    /// Redacts a camera frame before it is sent to the operator.
-    ///
-    /// Takes ownership of the raw frame and returns the redacted frame. Only the
-    /// redacted frame is returned, so the caller has no unblurred copy to send.
+    /// Redacts a camera frame before it is sent to the operator. Takes ownership
+    /// of the raw frame and returns only the redacted one.
     pub fn redact_for_operator<'a>(
         &self,
         frame: Frame<'a>,
@@ -153,54 +169,48 @@ impl TeleopAdapter {
     }
 }
 
-const MAX_BRAKE: u16 = 1_000;
-const MAX_STEER_CDEG: i32 = tpt_t_urban_edge::actuator::MAX_STEER_CDEG;
-const REDACT_RADIUS: usize = 3;
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const OP: [u8; 16] = [7; 16];
-
-    fn cmd(steering: f32, pedal: f32) -> ControlCommand {
-        ControlCommand {
-            timestamp_us: 0,
-            operator_id: OP,
-            steering,
-            pedal,
-            estop: false,
-        }
+    fn cmd(seq: u64, mode: Mode, steering: f32, pedal: f32) -> ControlCommand {
+        let mut c = ControlCommand::zeroed(mode);
+        c.seq = seq;
+        c.axes[AXIS_STEERING] = steering;
+        c.axes[AXIS_THROTTLE] = pedal;
+        c
     }
 
-    fn active() -> TeleopAdapter {
-        let mut a = TeleopAdapter::new();
-        a.apply(Event::Request, None).unwrap();
-        a.apply(Event::Engage, Some(OP)).unwrap();
+    /// Adapter driven to `FullTeleop` through the legal Auto → Assist → FullTeleop path.
+    fn teleop() -> TeleopAdapter {
+        let a = TeleopAdapter::new();
+        a.request_mode(Mode::Assist).unwrap();
+        a.request_mode(Mode::FullTeleop).unwrap();
         a
     }
 
     #[test]
-    fn commands_are_refused_outside_teleop() {
+    fn auto_refuses_operator_input() {
         let mut a = TeleopAdapter::new();
         assert_eq!(
-            a.on_control_command(&cmd(0.0, 0.5)),
+            a.on_control_command(&cmd(1, Mode::Auto, 0.0, 0.5)),
             Err(CommandError::NotActive)
         );
     }
 
     #[test]
-    fn commands_from_the_wrong_operator_are_refused() {
-        let mut a = active();
-        let mut c = cmd(0.0, 0.5);
-        c.operator_id = [9; 16];
-        assert_eq!(a.on_control_command(&c), Err(CommandError::WrongOperator));
+    fn direct_auto_to_teleop_is_refused_by_the_table() {
+        let a = TeleopAdapter::new();
+        assert!(a.request_mode(Mode::FullTeleop).is_err());
+        assert_eq!(a.mode(), Mode::Auto);
     }
 
     #[test]
-    fn throttle_command_reaches_the_actuator_within_rate_limits() {
-        let mut a = active();
-        let out = a.on_control_command(&cmd(0.0, 1.0)).unwrap();
+    fn full_teleop_throttle_is_rate_limited() {
+        let mut a = teleop();
+        let out = a
+            .on_control_command(&cmd(1, Mode::FullTeleop, 0.0, 1.0))
+            .unwrap();
         assert_eq!(
             out.throttle_permille,
             tpt_t_urban_edge::actuator::MAX_PERMILLE_RATE
@@ -209,32 +219,93 @@ mod tests {
     }
 
     #[test]
-    fn traffic_stop_overrides_the_operator_throttle() {
-        let mut a = active();
-        for _ in 0..10 {
-            a.on_control_command(&cmd(0.0, 1.0)).unwrap();
-        }
-        a.set_law_decision(Decision::Stop);
-        let mut out = a.on_control_command(&cmd(0.0, 1.0)).unwrap();
-        for _ in 0..10 {
-            out = a.on_control_command(&cmd(0.0, 1.0)).unwrap();
-        }
-        assert_eq!(out.throttle_permille, 0);
-        assert_eq!(out.brake_permille, LAW_STOP_BRAKE_PERMILLE);
+    fn negative_pedal_brakes_and_steering_follows_roll_axis() {
+        let mut a = teleop();
+        let out = a
+            .on_control_command(&cmd(1, Mode::FullTeleop, 1.0, -1.0))
+            .unwrap();
+        assert!(out.brake_permille > 0);
+        assert!(out.steer_cdeg > 0);
     }
 
     #[test]
-    fn estop_from_any_mode_brakes_and_latches_emergency() {
-        let mut a = TeleopAdapter::new();
-        let mut c = cmd(0.0, 0.0);
-        c.estop = true;
-        let out = a.on_control_command(&c).unwrap();
+    fn assist_passes_steering_but_holds_throttle() {
+        let a = TeleopAdapter::new();
+        a.request_mode(Mode::Assist).unwrap();
+        let mut a = a;
+        let out = a
+            .on_control_command(&cmd(1, Mode::Assist, 0.5, 1.0))
+            .unwrap();
+        assert_eq!(out.throttle_permille, 0);
+        assert!(out.steer_cdeg > 0);
+    }
+
+    #[test]
+    fn replayed_or_out_of_order_commands_are_refused() {
+        let mut a = teleop();
+        a.on_control_command(&cmd(5, Mode::FullTeleop, 0.0, 0.0))
+            .unwrap();
+        assert_eq!(
+            a.on_control_command(&cmd(5, Mode::FullTeleop, 0.0, 0.0)),
+            Err(CommandError::Replay)
+        );
+        assert_eq!(
+            a.on_control_command(&cmd(4, Mode::FullTeleop, 0.0, 0.0)),
+            Err(CommandError::Replay)
+        );
+    }
+
+    #[test]
+    fn command_for_a_stale_mode_is_refused() {
+        let mut a = teleop();
+        assert_eq!(
+            a.on_control_command(&cmd(1, Mode::Assist, 0.0, 0.0)),
+            Err(CommandError::ModeMismatch {
+                current: Mode::FullTeleop
+            })
+        );
+    }
+
+    #[test]
+    fn malformed_command_is_refused_without_consuming_its_seq() {
+        let mut a = teleop();
+        let mut bad = cmd(3, Mode::FullTeleop, 0.0, 0.0);
+        bad.magic = 0;
+        assert_eq!(a.on_control_command(&bad), Err(CommandError::Malformed));
+        assert!(
+            a.on_control_command(&cmd(3, Mode::FullTeleop, 0.0, 0.0))
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn operator_estop_latches_and_brakes_in_any_mode() {
+        let mut a = teleop();
+        let out = a
+            .on_control_command(&cmd(1, Mode::EmergencyStop, 0.0, 1.0))
+            .unwrap();
         assert_eq!(a.mode(), Mode::EmergencyStop);
         assert!(out.brake_permille > 0);
-        assert_eq!(
-            a.on_control_command(&cmd(0.0, 1.0)),
-            Err(CommandError::NotActive)
-        );
+        assert_eq!(out.throttle_permille, 0);
+        // Further drive commands are still braked, never throttled.
+        let later = a
+            .on_control_command(&cmd(2, Mode::FullTeleop, 0.0, 1.0))
+            .unwrap();
+        assert_eq!(later.throttle_permille, 0);
+    }
+
+    #[test]
+    fn traffic_stop_overrides_the_operator_throttle() {
+        let mut a = teleop();
+        a.set_law_decision(Decision::Stop);
+        let mut out = Actuation::default();
+        for seq in 1..=12 {
+            out = a
+                .on_control_command(&cmd(seq, Mode::FullTeleop, 0.0, 1.0))
+                .unwrap();
+        }
+        assert_eq!(out.throttle_permille, 0);
+        assert_eq!(out.brake_permille, LAW_STOP_BRAKE_PERMILLE);
     }
 
     #[test]
@@ -253,7 +324,6 @@ mod tests {
         let redacted = a
             .redact_for_operator(frame, &detections, &mut scratch)
             .unwrap();
-        // The uniform frame is unchanged by blur, but pixels outside detections must still match.
         assert!(!tpt_t_urban_privacy::changed_outside_detections(
             &original,
             &redacted,

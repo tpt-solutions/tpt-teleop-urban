@@ -1,15 +1,15 @@
-//! Adapter implementing tpt-teleop's `DomainTeleopInterface` for urban vehicles.
+//! Urban vehicle side of tpt-teleop's control protocol.
 //!
-//! - [`state`]: the universal teleop safety state machine.
-//! - [`adapter`]: operator command mapping, gated by mode, traffic law and
-//!   actuator limits, and video redaction before it reaches the operator.
+//! - [`adapter`]: turns the upstream `ControlCommand` into actuator commands,
+//!   gated by the upstream mode machine, traffic law, and actuator limits, and
+//!   redacts video before it leaves the vehicle.
 //!
-//! Pending: the `DomainTeleopInterface` trait comes from `tpt-t-domain-bridge`,
-//! which lives in the `tpt-teleop` repository. This crate does not yet depend on
-//! it, so the adapter is not the trait impl yet.
+//! Built on tpt-teleop's `tpt-t-core` (pinned git dependency). The
+//! `DomainTeleopInterface` trait in the bridge spec is not in upstream yet, so
+//! the adapter exposes the same operations as plain methods.
 
 pub mod adapter;
-pub mod state;
 
-pub use adapter::{CommandError, ControlCommand, TeleopAdapter};
-pub use state::{Event, Mode, transition};
+pub use adapter::{CommandError, TeleopAdapter};
+pub use tpt_t_core::ser::ControlCommand;
+pub use tpt_t_core::{Mode, StateMachine};
