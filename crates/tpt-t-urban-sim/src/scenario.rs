@@ -84,9 +84,27 @@ impl Noise {
     }
 }
 
+/// One simulated step, for plotting.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TracePoint {
+    pub t_s: f32,
+    pub vehicle_x: f32,
+    pub speed_mps: f32,
+    pub ped_x: f32,
+    pub ped_y: f32,
+    /// Whether the guardian was overriding the planner this step.
+    pub override_active: bool,
+}
+
 /// Runs the crossing scenario and returns the outcome.
 #[must_use]
 pub fn run_crossing(s: &Scenario) -> Outcome {
+    run_crossing_traced(s, |_| {})
+}
+
+/// Runs the crossing scenario and calls `on_step` once per simulated step.
+#[must_use]
+pub fn run_crossing_traced(s: &Scenario, mut on_step: impl FnMut(TracePoint)) -> Outcome {
     let mut vehicle = Bicycle::new(0.0, 0.0, 0.0, s.speed_mps, 2.7);
     // Pedestrian starts on the far side of the lane and walks across.
     let mut ped_y = -6.0f32;
@@ -102,7 +120,7 @@ pub fn run_crossing(s: &Scenario) -> Outcome {
     };
 
     let steps = (s.duration_s / s.dt_s) as usize;
-    for _ in 0..steps {
+    for step in 0..steps {
         // Pedestrian moves, then is measured with noise.
         ped_y += s.walk_speed_mps * s.dt_s;
         let z = [
@@ -144,6 +162,14 @@ pub fn run_crossing(s: &Scenario) -> Outcome {
         vehicle.step(s.dt_s, 0.0, -decel);
 
         // Record the true geometry this step.
+        on_step(TracePoint {
+            t_s: (step + 1) as f32 * s.dt_s,
+            vehicle_x: vehicle.x,
+            speed_mps: vehicle.speed,
+            ped_x,
+            ped_y,
+            override_active: command > 0.0,
+        });
         let front = vehicle.x + FRONT_OFFSET_M;
         if ped_y.abs() < LANE_HALF_WIDTH_M {
             out.min_gap_m = out.min_gap_m.min(ped_x - front);

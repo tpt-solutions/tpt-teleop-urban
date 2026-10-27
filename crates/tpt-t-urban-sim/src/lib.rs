@@ -8,7 +8,8 @@
 //! injection, and the egui visualizer. Those are Phase 15 items in `todo.md`.
 
 pub mod plant;
+pub mod render;
 pub mod scenario;
 
 pub use plant::Bicycle;
-pub use scenario::{Outcome, Scenario, run_crossing};
+pub use scenario::{Outcome, Scenario, TracePoint, run_crossing, run_crossing_traced};
