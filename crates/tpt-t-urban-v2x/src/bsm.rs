@@ -312,4 +312,30 @@ mod tests {
             .unwrap_err();
         assert_eq!(err, UperError::OutOfRange);
     }
+
+    /// Feeds pseudo-random bytes to the decoder. Every input must produce `Ok`
+    /// or an error, never a panic or an out-of-range value.
+    #[test]
+    fn random_bytes_never_panic_and_decoded_values_are_in_range() {
+        let mut state = 0x2545_F491_u32;
+        let mut buf = [0u8; 40];
+        for _ in 0..20_000 {
+            for b in &mut buf {
+                state ^= state << 13;
+                state ^= state >> 17;
+                state ^= state << 5;
+                *b = state as u8;
+            }
+            let Ok(d) = BsmCoreData::decode(&mut BitReader::new(&buf)) else {
+                continue;
+            };
+            assert!((MSG_CNT_RANGE.0..=MSG_CNT_RANGE.1).contains(&i64::from(d.msg_cnt)));
+            assert!((LAT_RANGE.0..=LAT_RANGE.1).contains(&i64::from(d.lat)));
+            assert!((LON_RANGE.0..=LON_RANGE.1).contains(&i64::from(d.lon)));
+            assert!((SPEED_RANGE.0..=SPEED_RANGE.1).contains(&i64::from(d.speed)));
+            assert!(
+                (VEHICLE_WIDTH_RANGE.0..=VEHICLE_WIDTH_RANGE.1).contains(&i64::from(d.size.width))
+            );
+        }
+    }
 }
