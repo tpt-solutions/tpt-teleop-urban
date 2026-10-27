@@ -81,6 +81,11 @@ hardware bring-up → hardening/release.
 > core-data decoder is written but its J2735 field ranges are UNVERIFIED (the
 > SAE ASN.1 module is paywalled). MAP, SPAT and SRM are not started. The fuzz
 > tests and the <10µs benchmark are not done.
+>
+> Update: a random-input decoder test is in. Host timing for one core-data
+> decode is about 0.3 µs against the 10 µs budget. MAP, SPAT and SRM are still
+> not started. Writing those decoders without the SAE ASN.1 module would mean
+> guessing at wire formats, so they stay open.
 
 - [ ] Zero-copy ASN.1 UPER parser reading raw UDP packets from the C-V2X
       radio directly into pre-allocated rkyv structs
@@ -95,8 +100,9 @@ hardware bring-up → hardening/release.
 
 ## Phase 4 — `tpt-t-urban-perception`
 > Status: GNSS kinematic jump detection, LiDAR fallback with hysteresis, and
-> curb edge detection from a height profile are done. Open: multi-sensor
-> fusion and 3D detection/tracking, which need sensor models and data.
+> curb edge detection from a height profile, and inverse-variance fusion of two
+> position estimates are done. Open: fusion of real sensor streams, and 3D
+> detection and tracking, which need sensor data and a detector.
 - [ ] Multi-sensor fusion pipeline: LiDAR, Radar, Camera, Ultrasonic
 - [ ] 3D object detection, tracking, and classification
 - [ ] GNSS multipath/anomaly detection (e.g. 5-meter position jump in urban
@@ -108,8 +114,11 @@ hardware bring-up → hardening/release.
 
 ## Phase 5 — `tpt-t-urban-predict`
 > Status: two-model IMM filter and trajectory cone are done as a scalar
-> reference. Open: the `portable_simd` kernel for 100+ agents, the crate-local
-> nightly toolchain, and the <2 ms benchmark.
+> reference. A `simd` feature adds an eight-wide `portable_simd` kernel for
+> batched constant-velocity propagation, tested against the scalar path on
+> nightly. Host timing for a 50-agent IMM frame is about 6 µs against the 2 ms
+> budget. Open: a SIMD IMM filter itself, a crate-local nightly toolchain, and
+> target-hardware timing.
 - [ ] Crate-local nightly toolchain override + `#![feature(portable_simd)]`,
       CI job scoped to this crate only (rest of workspace stays stable)
 - [ ] Custom SIMD-accelerated Interacting Multiple Model (IMM) Kalman Filter
@@ -216,6 +225,9 @@ hardware bring-up → hardening/release.
 - [ ] `no_std` build validated for target embedded platforms
 
 ## Phase 13 — Thread-Per-Core Integration (spec.txt §4.5)
+> Status: a schedulability check for the spec's pinned layout (per-core
+> utilization and chain latency) is in `tpt-t-urban-core::schedule`. Open: thread
+> pinning, measured worst cases, and the target-hardware latency sign-off.
 - [ ] Core 0: io_uring ingest of raw LiDAR/Camera/Radar data into
       slab-allocated ring buffers
 - [ ] Core 1: `tpt-t-urban-perception` + `tpt-t-urban-predict` pinned,
@@ -257,7 +269,9 @@ hardware bring-up → hardening/release.
 ## Phase 15 — `tpt-t-urban-sim` + Visualizer
 > Status: a kinematic bicycle plant and a crossing-pedestrian scenario (noisy
 > measurements → IMM → guardian → plant) are done. Open: 3D city, sensor
-> raycasting, V2X traffic injection, and the egui visualizer.
+> raycasting, V2X traffic injection, and the egui visualizer. Headless SVG
+> rendering of the scenario trace stands in for the visualizer for now
+> (`cargo run -p tpt-t-urban-sim --example render_crossing`).
 - [ ] Headless simulator: high-fidelity 3D city environments with dynamic
       traffic, pedestrians, and cyclists driven by realistic behavioral
       models
@@ -279,9 +293,11 @@ hardware bring-up → hardening/release.
 - [ ] Visualizer: V2X message reception and range visualization
 
 ## Phase 16 — System Integration & End-to-End
-> Status: a crossing-pedestrian chain test (sim, predict, safety) is done. Open:
-> the full last-mile flow from departure to audit log, and the cross-crate
-> allocation audit.
+> Status: a last-mile data-flow test runs GLOSA, stop-sign compliance, pedestrian
+> yield, curb mount and unlock across the crates, with every decision in a
+> verified ledger (`crates/tpt-t-urban-sim/tests/last_mile.rs`). A sensor-driven
+> crossing test is also in. Open: the flow driven entirely by sensor models,
+> and the cross-crate allocation audit.
 - [ ] Full "Last-Mile Urban Delivery" data-flow test (spec.txt §6):
       departure → SPAT-driven smooth speed adjustment approaching an
       intersection → GNSS urban-canyon anomaly with seamless LiDAR fallback
@@ -300,6 +316,10 @@ hardware bring-up → hardening/release.
 - [ ] Full `cargo-deny` MIT-chain audit pass across the workspace
 
 ## Phase 17 — Regulatory & Certification Readiness
+> Status: a working FMEA for the AEB and MRM path is in
+> `docs/safety/aeb-fmea.md`, with each mitigation marked by whether it exists in
+> code. The ISO 26262, ISO 21448 and UL 4600 reviews themselves are not done and
+> need the people and the hardware.
 - [ ] ISO 26262 (Functional Safety, ASIL-D concepts) compliance review
 - [ ] ISO 21448 (SOTIF — Safety of the Intended Functionality) compliance
       review
@@ -328,9 +348,11 @@ hardware bring-up → hardening/release.
       delivery route or robotaxi loop, start to finish
 
 ## Phase 19 — Hardening, Docs & v1.0.0 Release
-> Status: workspace clippy, nightly clippy for predict and privacy, and a
-> random-input decoder test are done. Open: coverage-guided fuzzing, the parse
-> and blur benchmarks, and the docs and release steps.
+> Status: workspace clippy, nightly clippy for predict and privacy, a
+> random-input decoder test, and a host-machine budget check are done
+> (`cargo run --release -p tpt-t-urban-sim --example budgets`). All host
+> figures are under budget. Target-hardware measurement is open, as are
+> coverage-guided fuzzing and the docs and release steps.
 - [x] `cargo clippy --workspace --all-targets -- -D warnings` clean
       (stable workspace)
 - [x] Nightly clippy pass clean for `tpt-t-urban-predict` and
