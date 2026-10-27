@@ -50,33 +50,32 @@ hardware bring-up → hardening/release.
 - [x] `docs/quickstart.md` stub
 - [x] Stub empty crate skeletons (Cargo.toml + lib.rs) for all crates below
 
-## Phase 1 — Cross-Repo Bridge: `tpt-t-domain-bridge` (lives in `tpt-teleop` repo)
-> Status (checked against github.com/tpt-solutions/tpt-teleop at 216427c): the
-> bridge crate does not exist there. The bridge spec describes it, but upstream
-> has no `DomainTeleopInterface`. Upstream has `RobotDevice` (for hardware
-> devices), not the domain interface. Two discrepancies with the bridge spec:
-> (1) the spec's `ControlCommand` (operator_id, InputState, ButtonState) is not
-> implemented. Upstream uses the flat 56-byte POD, which is what the urban
-> adapter consumes. (2) The spec's state machine (AUTONOMOUS, REQUESTING_TELEOP,
-> TELEOP_ACTIVE, RETURNING_TO_AUTONOMY) differs from upstream `Mode` (Auto,
-> Assist, FullTeleop, EmergencyStop). The urban side follows upstream. Creating
-> the bridge crate belongs in the tpt-teleop repo, so it is not done here.
-- [ ] New crate `tpt-t-domain-bridge` under `tpt-teleop/crates/`
-- [ ] Define `DomainTeleopInterface` (DTI) trait: `on_teleop_engage`,
+## Phase 1 — Cross-Repo Bridge: `tpt-t-domain-bridge` (upstream in `tpt-teleop`)
+> Status: the crate now exists upstream in `tpt-teleop` at c701ebe, and this
+> repo pins it as a git dependency (`Cargo.toml`, `[workspace.dependencies]`).
+> Upstream differs from the bridge spec in two places, and the urban side
+> follows upstream:
+> (1) `ControlCommand` is the flat 56-byte POD from `tpt-t-core::ser`, not the
+> spec's `operator_id`/`InputState`/`ButtonState` struct. The operator id is
+> given once on engage and held by `DomainSession`.
+> (2) The handover states use the spec's names (`HandoverState`), and map onto
+> the core `Mode` (`Auto`, `Assist`, `FullTeleop`, `EmergencyStop`).
+> Upstream's own tests were not run here. The workspace builds against the crate
+> and passes its own tests.
+- [x] New crate `tpt-t-domain-bridge` under `tpt-teleop/crates/` (upstream)
+- [x] Define `DomainTeleopInterface` (DTI) trait: `on_teleop_engage`,
       `on_teleop_disengage`, `on_control_command`, `get_domain_state`,
-      `get_sensor_feed`
-- [ ] Define wire types with `rkyv::Archive`: `ControlCommand`, `InputState`,
-      `SensorFeed`, `DomainState`, `DomainTelemetry`, `HapticCmd`/`HapticFeedback`
-- [ ] Reconcile aspirational `ControlCommand` (operator_id/InputState/
-      ButtonState) against any existing flat POD `ControlCommand` type in
-      `tpt-teleop-core/src/ser/cmd.rs` (bridge spec.txt flags this as an
-      intentional, unreconciled discrepancy — resolve or document the mapping)
-- [ ] Universal safety state machine: `AUTONOMOUS → REQUESTING_TELEOP →
-      TELEOP_ACTIVE → RETURNING_TO_AUTONOMY → AUTONOMOUS`, plus
-      `EMERGENCY_STOP` transitions
-- [ ] `request_teleop_assistance()` API surface
-- [ ] Unit tests + doc examples; publish path so `tpt-t-urban-teleop` can
-      depend on it (path dep during co-development)
+      `get_sensor_feed`, plus `on_emergency_stop`
+- [x] Define wire types with `rkyv::Archive`: `SensorFeed`, `DomainState`,
+      `DomainTelemetry`, `HapticFeedback`, `VideoFrame`, `PointCloud`,
+      `AudioStream` (upstream names; `InputState`/`HapticCmd` are not in upstream)
+- [x] Reconcile aspirational `ControlCommand` against the flat POD (resolved
+      upstream: the POD is the wire type, and the operator id is per session)
+- [x] Universal safety state machine: `HandoverState` with `AUTONOMOUS →
+      REQUESTING_TELEOP → TELEOP_ACTIVE → RETURNING_TO_AUTONOMY → AUTONOMOUS`,
+      plus `EMERGENCY_STOP` transitions (`DomainSession` enforces them)
+- [x] `request_teleop_assistance()` API surface (`TeleopLink` trait)
+- [x] Unit tests + doc examples; git dependency in the urban workspace
 
 ## Phase 2 — `tpt-t-urban-core`
 - [x] Central deterministic event loop
@@ -93,8 +92,9 @@ hardware bring-up → hardening/release.
 > tests and the <10µs benchmark are not done.
 >
 > Update: a random-input decoder test is in. Host timing for one core-data
-> decode is about 0.3 µs against the 10 µs budget. MAP, SPAT and SRM are still
-> not started. Writing those decoders without the SAE ASN.1 module would mean
+> decode is about 0.3 µs against the 10 µs budget. A property test now drives
+> every UPER primitive with random bytes and extreme bounds (coverage-guided
+> fuzzing is still not done). MAP, SPAT and SRM are still not started. Writing those decoders without the SAE ASN.1 module would mean
 > guessing at wire formats, so they stay open.
 
 - [ ] Zero-copy ASN.1 UPER parser reading raw UDP packets from the C-V2X
@@ -188,8 +188,9 @@ hardware bring-up → hardening/release.
 
 ## Phase 9 — `tpt-t-urban-car`
 > Status: speed profile (curvature, accel and brake limits), pure pursuit
-> tracking, and the GLOSA advisory are done. Open: re-routing over a road
-> graph, and emergency-vehicle SRM yield.
+> tracking, and the GLOSA advisory are done. Fastest-route planning over a
+> directed road graph (`routing` module) replans around closed edges. Open:
+> feeding closures from live V2X and map data, and emergency-vehicle SRM yield.
 - [ ] Autonomous vehicle trajectory planning and decision-making for 4-wheel
       vehicles (robotaxis and autonomous transit shuttles)
 - [ ] Path generation, speed profiling, smooth kinematic control
@@ -251,34 +252,53 @@ hardware bring-up → hardening/release.
 - [ ] End-to-end deterministic max-latency measurement and budget sign-off
 
 ## Phase 14 — `tpt-t-urban-teleop` (adapter crate)
-> Status: the adapter is built on upstream `tpt-t-core` (pinned git dependency
-> to github.com/tpt-solutions/tpt-teleop at 216427c). It uses the upstream
-> `ControlCommand` (56-byte POD), the upstream `StateMachine` (Auto, Assist,
-> FullTeleop, EmergencyStop), and checks the wire magic, sequence numbers and
-> mode. It also applies the traffic-law and actuator gates and redacts video.
-> Open: `Assist` blending is not implemented (steering passes, throttle held).
-> The `DomainTeleopInterface` trait is not in upstream, so the adapter has
-> plain methods rather than a trait impl.
-- [ ] Depend on `tpt-t-domain-bridge` (Phase 1) and implement
+> Status: `TeleopAdapter` implements upstream `DomainTeleopInterface`
+> (`tpt-t-domain-bridge`, pinned at c701ebe with `tpt-t-core` on the same rev).
+> It uses the upstream `ControlCommand` (56-byte POD) and `StateMachine`. Each
+> command passes the wire, mode, traffic-law and actuator gates. Engage and
+> disengage are tracked per operator, and an emergency stop latches. Tests drive
+> the adapter through `DomainSession` (`tests/session.rs`).
+> Handover trigger: a latched guardian MRM (stale planner heartbeat) requests
+> assistance as `Degraded`, through `assistance_reason`. AEB does not, because
+> it clears on its own. Return to autonomy waits until the MRM is cleared at
+> rest (`ready_to_return`, `clear_mrm`). Tests are in `tests/handover.rs`.
+> An operator may engage while an MRM or AEB is latched. The guardian's override
+> then applies to the operator: throttle is removed and the brake is full
+> (`TeleopAdapter::set_guardian`). The operator can steer and stop, and cannot
+> drive the vehicle until the guardian clears.
+> `Assist` blending is not implemented (steering passes, throttle held). The
+> bridge spec defers continuous blended control, so this is not a spec gap.
+> Open: `get_domain_state` reports a sensor fault until `update_state` is called
+> with a real estimate. Nothing feeds it yet.
+> Open: `get_sensor_feed` returns no video, LiDAR or haptics. Video redaction
+> exists (`redact_for_operator`) but is not connected to the feed.
+> Emergency stop applies full brake and zero throttle on the first tick. It
+> bypasses the slew limit (`Limiter::emergency_brake`), and steering holds.
+> Trade-off accepted: a stop may jerk the vehicle once, where a slew-limited
+> stop would take four ticks.
+- [x] Depend on `tpt-t-domain-bridge` (Phase 1) and implement
       `DomainTeleopInterface`
-- [ ] Implement `on_teleop_engage`/`on_teleop_disengage` handover triggered
-      by `tpt-t-urban-safety` (e.g. complex construction zone the planner
-      cannot navigate)
-- [ ] Implement `on_control_command`: steering-wheel angle / pedal position
+- [x] Implement `on_teleop_engage`/`on_teleop_disengage` handover triggered
+      by `tpt-t-urban-safety`. The trigger covers a latched MRM only. The spec's
+      "construction zone the planner cannot navigate" case needs a planner
+      signal that does not exist yet
+- [x] Implement `on_control_command`: steering-wheel angle / pedal position
       (or joystick) → steer-by-wire and brake-by-wire commands via
-      `tpt-t-urban-edge`
+      `tpt-t-urban-edge`. The actuation is stored in `last_actuation()`
 - [ ] Implement `get_domain_state` (vehicle position, battery/fault status)
-      and `get_sensor_feed` (video, LiDAR, telemetry, haptic)
+      and `get_sensor_feed` (video, LiDAR, telemetry, haptic). Telemetry comes
+      from `update_state`, which has no source yet
 - [ ] Traffic-law enforcement during teleoperation: apply
       `tpt-t-urban-compliance` FSM constraints (speed limits, stop signs)
-      even while a human is driving
+      even while a human is driving (the gate exists; the compliance feed does
+      not yet drive it, so this stays open)
 - [ ] Privacy protection during teleoperation: route video feeds through
       `tpt-t-urban-privacy` before transmission to the remote operator
-- [ ] Return-to-autonomy handling once the vehicle clears the handover
-      condition (construction zone cleared, etc.)
-- [ ] Reconcile aspirational `ControlCommand` (operator_id/InputState/
-      ButtonState) against upstream's actual POD type (open decision,
-      tracked upstream — same open item as sister repos)
+- [x] Return-to-autonomy handling once the vehicle clears the handover
+      condition. Gated on the guardian's MRM latch being cleared at rest. The
+      construction-zone-cleared case waits on the same planner signal as above
+- [x] Reconcile aspirational `ControlCommand` against upstream's POD type
+      (resolved upstream: the POD is the wire type, the operator id is per session)
 
 ## Phase 15 — `tpt-t-urban-sim` + Visualizer
 > Status: a kinematic bicycle plant and a crossing-pedestrian scenario (noisy
@@ -320,14 +340,28 @@ hardware bring-up → hardening/release.
       blur applied before local SSD write → curb-mount + secure-compartment
       delivery → hash-chained audit log proving detection, correct
       yielding, and safe distance
-- [ ] Dependency-matrix conformance audit against §7 (confirm no banned
+- [x] Dependency-matrix conformance audit against §7 (confirm no banned
       dependency — heavy ASN.1 compilers, OpenCV/SLAM frameworks, black-box
       NN traffic rules, heavy ML inference, serde/bincode/prost, tokio/
       crossbeam, AutoWare-style frameworks, openssl/rustls — entered the
       tree)
-- [ ] Cross-workspace zero-allocation/zero-lock verification across all
-      urban crates
-- [ ] Full `cargo-deny` MIT-chain audit pass across the workspace
+- [~] Cross-workspace zero-allocation/zero-lock verification across all
+      urban crates. Zero-lock: `tools/lock-audit.sh` covers core, safety,
+      compliance, edge and teleop, and passes. Zero-allocation: each hot-path
+      crate has a `tests/allocation.rs` with a counting global allocator and
+      a control case. The success paths make zero allocations in the bus,
+      guardian, compliance `evaluate`, edge limiter/watchdog/failover, perception
+      steps (jump check, source selection, fusion, curb detection), predict
+      (IMM step and estimate, scalar propagation), and the teleop hooks.
+      The teleop hooks' error paths allocate nothing either, since upstream
+      `DomainError::Adapter` now holds a `&'static str` (upstream commit
+      198c3fa on `fix/domain-error-static-str`, breaking change, pushed
+      manually). Also covered: `EventLoop::step`.
+      Open: the predict SIMD kernel (nightly only), and the ledger append, which
+      is audit rather than hot path, so it is not checked.
+- [x] Full `cargo-deny` MIT-chain audit pass across the workspace (`cargo deny
+      check`: advisories, bans, licenses and sources all pass. Duplicate-version
+      warnings remain, from `windows-sys` 0.52 and 0.60, and are non-blocking)
 
 ## Phase 17 — Regulatory & Certification Readiness
 > Status: a working FMEA for the AEB and MRM path is in
@@ -375,7 +409,8 @@ hardware bring-up → hardening/release.
       parse, <50µs compliance FSM eval, <2ms/frame predict, <3ms privacy
       blur, <50ms guardian AEB reaction, sub-10cm GNSS-denied localization
 - [ ] Fuzz/property testing for custom zero-allocation parsers (V2X UPER)
-- [ ] Developer docs complete (`docs/quickstart.md`, `docs/ARCHITECTURE.md`,
-      crate-level rustdoc)
+- [~] Developer docs complete (`docs/quickstart.md`, `docs/ARCHITECTURE.md`,
+      crate-level rustdoc). Both docs are written and their commands were run.
+      Crate-level rustdoc is not audited yet.
 - [ ] README finalized
 - [ ] Tag `v1.0.0` — "v1 Monolithic Release"

@@ -1,9 +1,10 @@
 [toolchain]
 # Stable is the workspace default. Nightly is needed only by the two crates
 # that use `#![feature(portable_simd)]`: tpt-t-urban-predict (SIMD IMM Kalman
-# filter) and tpt-t-urban-privacy (SIMD blur). Those crates pin their own
-# nightly in a crate-local rust-toolchain.toml (added in Phases 5 and 8), and
-# CI runs them in a separate nightly job. Everything else stays on stable.
+# filter) and tpt-t-urban-privacy (SIMD blur). CI runs the nightly
+# `--features simd` job separately. Crate-local nightly pins are still open
+# (todo Phases 5 and 8), so this file is the only toolchain pin. Everything
+# else stays on stable.
 channel = "stable"
 components = ["rustfmt", "clippy"]
 profile = "minimal"
