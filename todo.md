@@ -51,6 +51,16 @@ hardware bring-up → hardening/release.
 - [x] Stub empty crate skeletons (Cargo.toml + lib.rs) for all crates below
 
 ## Phase 1 — Cross-Repo Bridge: `tpt-t-domain-bridge` (lives in `tpt-teleop` repo)
+> Status (checked against github.com/tpt-solutions/tpt-teleop at 216427c): the
+> bridge crate does not exist there. The bridge spec describes it, but upstream
+> has no `DomainTeleopInterface`. Upstream has `RobotDevice` (for hardware
+> devices), not the domain interface. Two discrepancies with the bridge spec:
+> (1) the spec's `ControlCommand` (operator_id, InputState, ButtonState) is not
+> implemented. Upstream uses the flat 56-byte POD, which is what the urban
+> adapter consumes. (2) The spec's state machine (AUTONOMOUS, REQUESTING_TELEOP,
+> TELEOP_ACTIVE, RETURNING_TO_AUTONOMY) differs from upstream `Mode` (Auto,
+> Assist, FullTeleop, EmergencyStop). The urban side follows upstream. Creating
+> the bridge crate belongs in the tpt-teleop repo, so it is not done here.
 - [ ] New crate `tpt-t-domain-bridge` under `tpt-teleop/crates/`
 - [ ] Define `DomainTeleopInterface` (DTI) trait: `on_teleop_engage`,
       `on_teleop_disengage`, `on_control_command`, `get_domain_state`,
@@ -241,10 +251,14 @@ hardware bring-up → hardening/release.
 - [ ] End-to-end deterministic max-latency measurement and budget sign-off
 
 ## Phase 14 — `tpt-t-urban-teleop` (adapter crate)
-> Status: the teleop safety state machine and the gated command adapter (mode,
-> traffic law, actuator limits, privacy redaction) are done. Open: implementing
-> `DomainTeleopInterface`, which is blocked on `tpt-t-domain-bridge` in the
-> `tpt-teleop` repository.
+> Status: the adapter is built on upstream `tpt-t-core` (pinned git dependency
+> to github.com/tpt-solutions/tpt-teleop at 216427c). It uses the upstream
+> `ControlCommand` (56-byte POD), the upstream `StateMachine` (Auto, Assist,
+> FullTeleop, EmergencyStop), and checks the wire magic, sequence numbers and
+> mode. It also applies the traffic-law and actuator gates and redacts video.
+> Open: `Assist` blending is not implemented (steering passes, throttle held).
+> The `DomainTeleopInterface` trait is not in upstream, so the adapter has
+> plain methods rather than a trait impl.
 - [ ] Depend on `tpt-t-domain-bridge` (Phase 1) and implement
       `DomainTeleopInterface`
 - [ ] Implement `on_teleop_engage`/`on_teleop_disengage` handover triggered
