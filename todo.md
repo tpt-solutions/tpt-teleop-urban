@@ -77,6 +77,11 @@ hardware bring-up → hardening/release.
       script was not on disk, so this one was written fresh)
 
 ## Phase 3 — `tpt-t-urban-v2x`
+> Status: X.691 UPER primitives are verified against the standard text. The BSM
+> core-data decoder is written but its J2735 field ranges are UNVERIFIED (the
+> SAE ASN.1 module is paywalled). MAP, SPAT and SRM are not started. The fuzz
+> tests and the <10µs benchmark are not done.
+
 - [ ] Zero-copy ASN.1 UPER parser reading raw UDP packets from the C-V2X
       radio directly into pre-allocated rkyv structs
 - [ ] BSM (Basic Safety Message) parsing, <10µs per message, zero heap
@@ -109,6 +114,10 @@ hardware bring-up → hardening/release.
 - [ ] Benchmark: <2ms per frame at 30Hz for a busy intersection (50+ agents)
 
 ## Phase 6 — `tpt-t-urban-compliance`
+> Status: stop-sign / speed-limit FSM with reasons, and an Ed25519-signed,
+> SHA-256 hash-chained in-memory ledger, are done. Open: full rule set,
+> durable power-loss-safe storage, and the <50µs timing check.
+
 - [ ] Deterministic Finite State Machine encoding local traffic rules (stop
       signs, right-of-way, speed limits)
 - [ ] Full intersection-state evaluation in <50µs
