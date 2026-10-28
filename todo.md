@@ -158,8 +158,12 @@ hardware bring-up → hardening/release.
       justification generated for every decision (yield/proceed/stop)
 - [x] Hash-chained, append-only immutable audit ledger, surviving sudden
       power loss (verified with simulated torn writes; target storage not yet tested)
-- [ ] Logging integration: sensor data, V2X messages, planner outputs, and
-      FSM decisions all recorded to the black-box ledger
+- [~] Logging integration: sensor data, V2X messages, planner outputs, and
+      FSM decisions all recorded to the black-box ledger (`compliance::journal`
+      encodes records. The sim writes guardian interventions and the run outcome
+      through `sim::journal`, and the chain verifies after a reopen. Sensor data,
+      V2X messages, planner outputs and FSM decisions have no producer to record
+      from yet)
 
 ## Phase 7 — `tpt-t-urban-safety`
 > Status: guardian logic is done (latched AEB from TTC and braking sufficiency,
