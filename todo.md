@@ -359,17 +359,21 @@ hardware bring-up → hardening/release.
 > (`sweep` module, `cargo run --release -p tpt-t-urban-sim --example sweep`) checks
 > the guardian on every crossing that full braking could have avoided. A GNSS model
 > with multipath and denial windows drives the localization source selector, and
-> the chain is tested through it (`tests/gnss_canyon.rs`). Open: 3D city, sensor
-> raycasting, V2X traffic injection, and the egui visualizer. Headless SVG
-> rendering of the scenario trace stands in for the visualizer for now
-> (`cargo run -p tpt-t-urban-sim --example render_crossing`).
+> the chain is tested through it (`tests/gnss_canyon.rs`). A 2D LiDAR casts rays
+> against boxes (`sim::lidar`). Neighbour BSMs are encoded, sent over a lossy
+> delayed channel, and decoded (`sim::v2x`). An egui visualizer draws the crossing
+> (`visualizer` binary, `viz` feature; it builds and lints, and has not been run
+> in a window). A closed-loop planner drives a route, and a stalled planner hands
+> over to the MRM (`sim::drive`). Open: a 3D city, camera and radar models, and
+> SPAT traffic (no encoder for it yet).
 - [ ] Headless simulator: high-fidelity 3D city environments with dynamic
       traffic, pedestrians, and cyclists driven by realistic behavioral
-      models
-- [ ] Sensor simulation: LiDAR raycasting, camera rendering with motion
-      blur, radar point generation
-- [ ] V2X network simulation: inject realistic BSM/SPAT traffic with
-      configurable latency and packet loss
+      models (2D boxes and a straight road only)
+- [~] Sensor simulation: LiDAR raycasting (2D, boxes; done), camera rendering
+      with motion blur, radar point generation (not started)
+- [~] V2X network simulation: inject realistic BSM/SPAT traffic with
+      configurable latency and packet loss (BSM only, with latency and loss;
+      no SPAT encoder)
 - [x] GNSS multipath and denial modeling for urban canyon scenarios (noise,
       5 m multipath jumps and denial windows, tested through the source selector;
       the LiDAR side is modeled as ground truth, so sub-10 cm is not shown here)
@@ -377,9 +381,9 @@ hardware bring-up → hardening/release.
       "pedestrian runs into street at 30mph") to validate the safety
       guardian and compliance FSM (the guardian is swept over 2000 crossings
       per seed, and the compliance FSM is not in the sweep yet)
-- [ ] `egui` (MIT) visualizer binary: top-down 2D/3D view of the vehicle,
-      predicted trajectories of all agents, and the active traffic-rule
-      FSM state
+- [~] `egui` (MIT) visualizer binary: top-down view of the vehicle, the
+      pedestrian and the guardian state (2D, one scenario; no predicted
+      trajectories or traffic-rule FSM state yet; not run in a window)
 - [ ] Visualizer: real-time sensor fusion output (bounding boxes, point
       clouds)
 - [ ] Visualizer: privacy blur verification (side-by-side raw vs.
