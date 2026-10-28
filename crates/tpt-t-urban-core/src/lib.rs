@@ -1,5 +1,6 @@
 //! Central deterministic event loop, vehicle state machine, and lock-free message bus.
 //!
+//! - [`affinity`]: thread pinning for the thread-per-core layout.
 //! - [`bus`]: fixed-capacity SPSC ring used for all inter-crate messages.
 //! - [`fsm`]: the vehicle state machine transition table.
 //! - [`event_loop`]: single-threaded loop that consumes the bus and drives the FSM.
@@ -10,6 +11,7 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
+pub mod affinity;
 pub mod bus;
 pub mod event_loop;
 pub mod fsm;

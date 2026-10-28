@@ -357,7 +357,9 @@ dependencies = [
 name = "tpt-t-urban-core"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "rkyv",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
