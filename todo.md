@@ -226,11 +226,15 @@ hardware bring-up → hardening/release.
 ## Phase 10 — `tpt-t-urban-delivery`
 > Status: curb mount with ultrasonic verification, pedestrian yield with
 > hold-off, and the compartment lock with a constant-time code check are done.
-> Open: sidewalk navigation and obstacle avoidance, and the jaywalker
-> integration (Phase 16).
+> A static-obstacle detour planner for a straight sidewalk is in
+> `delivery::sidewalk`. It returns the smallest detour that clears every obstacle
+> with the bot's footprint, and stop when none fits. Open: navigation off a
+> straight sidewalk, moving obstacles, sensor-driven obstacle input, and the
+> jaywalker integration (Phase 16).
 - [ ] Curb detection and precise curb-mounting (verified by ultrasonic
       sensors from `tpt-t-urban-perception`)
-- [ ] Sidewalk navigation and obstacle avoidance
+- [~] Sidewalk navigation and obstacle avoidance (static obstacles on a straight
+      sidewalk: detour or stop; no route following, no moving obstacles)
 - [ ] Pedestrian right-of-way yielding with audible/visual polite signaling
 - [ ] Secure package compartment lock/unlock management
 - [ ] Jaywalker-reaction integration: consume `tpt-t-urban-predict` trajectory
