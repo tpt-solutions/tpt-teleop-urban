@@ -73,3 +73,18 @@ fn scalar_propagation_makes_no_heap_allocations() {
     let (_, n) = allocations_during(|| propagate_cv_scalar(&mut agents, 0.1));
     assert_eq!(n, 0, "propagate_cv_scalar allocated");
 }
+
+/// The SIMD kernel must also be allocation-free. It is nightly-only, so the test
+/// exists only with the `simd` feature.
+#[cfg(feature = "simd")]
+#[test]
+fn simd_propagation_makes_no_heap_allocations() {
+    use tpt_t_urban_predict::batch::propagate_cv_simd;
+
+    let mut agents = AgentsSoa::default();
+    for i in 0..50 {
+        agents.push(i as f32, 0.0, 5.0, 0.0);
+    }
+    let (_, n) = allocations_during(|| propagate_cv_simd(&mut agents, 0.1));
+    assert_eq!(n, 0, "propagate_cv_simd allocated");
+}
