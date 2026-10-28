@@ -23,6 +23,16 @@ pub const LANE_HALF_WIDTH_M: f32 = 2.0;
 pub const FRONT_OFFSET_M: f32 = 2.0;
 /// Pedestrian contact distance: closer than this in x and y counts as a hit, m.
 pub const CONTACT_M: f32 = 1.0;
+/// Whether the estimated pedestrian is in the lane or walking into it. `est` is
+/// `[x, y, vx, vy]`. No time limit applies here: the guardian's time-to-collision
+/// check decides when to act, so a pedestrian who is far from the lane but
+/// heading for it is still a threat.
+fn in_or_entering_lane(est: &[f32; 4]) -> bool {
+    let (y, vy) = (est[1], est[3]);
+    y.abs() < LANE_HALF_WIDTH_M
+        || (y < -LANE_HALF_WIDTH_M && vy > 0.0)
+        || (y > LANE_HALF_WIDTH_M && vy < 0.0)
+}
 
 /// Configuration of one run.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -130,9 +140,11 @@ pub fn run_crossing_traced(s: &Scenario, mut on_step: impl FnMut(TracePoint)) ->
         imm.step(z, s.dt_s);
         let est = imm.estimate().x;
 
-        // Guardian input: estimated pedestrian in the lane, ahead of the bumper.
+        // Guardian input: a pedestrian in or entering the lane, and ahead of the
+        // bumper. Waiting for lane entry would leave the guardian blind until the
+        // vehicle had already stopped.
         let bumper_x = vehicle.x + FRONT_OFFSET_M;
-        let obstacle = if est[1].abs() < LANE_HALF_WIDTH_M && est[0] > bumper_x {
+        let obstacle = if in_or_entering_lane(&est) && est[0] > bumper_x {
             Some(Obstacle {
                 range_mm: ((est[0] - bumper_x) * 1_000.0) as u32,
                 closing_speed_mm_s: (vehicle.speed * 1_000.0) as i32,

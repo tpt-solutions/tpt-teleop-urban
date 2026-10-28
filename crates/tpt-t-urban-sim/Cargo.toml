@@ -12,6 +12,7 @@ authors.workspace = true
 publish = false
 
 [dependencies]
+tpt-t-urban-perception = { workspace = true }
 tpt-t-urban-predict = { workspace = true }
 tpt-t-urban-safety = { workspace = true }
 
