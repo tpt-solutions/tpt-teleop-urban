@@ -184,20 +184,21 @@ hardware bring-up → hardening/release.
 > lateral-acceleration bound are in `tpt-t-urban-car::pull_over`. In the sim, a
 > guardian MRM drives the vehicle along the pull-over path and it stops on the
 > shoulder (`tpt-t-urban-sim::mrm`). `pull_over::choose` picks the pull-over when
-> the shoulder fits and the in-place brake when it does not. The live planner
-> does not call either yet. Open: running on a separate partition, the <50 ms
-> budget (needs measurement on target), wiring the pull-over into the planner,
-> and dual-channel brake failover.
+> the shoulder fits and the in-place brake when it does not. The sim's closed-loop
+> planner (`tpt-t-urban-sim::drive`) follows a route at the speed profile, and
+> when its heartbeat stalls the guardian's MRM hands over to that response. The
+> planner in the sim is not the production planner, which is not in this repo.
+> Open: running on a separate partition, the <50 ms budget (needs measurement on
+> target), and dual-channel brake failover.
 
 - [ ] Independent, redundant safety "guardian" state machine (separate
       compute partition from the primary planner)
 - [ ] Automatic Emergency Braking (AEB) trigger, <50ms reaction if the
       primary planner fails to react
 - [~] Minimal Risk Maneuver (MRM) — e.g. safe pull-to-shoulder — when AEB
-      alone is insufficient (the pull-over path runs through the plant from a
-      guardian MRM, and stops on the shoulder in the sim; the choice between
-      pull-over and braking in place is done; the live planner does not call
-      it yet)
+      alone is insufficient (a guardian MRM hands a stalled planner over to the
+      pull-over, which stops on the shoulder in the sim, or to braking in place
+      when no shoulder fits; the planner is the sim's, not production)
 - [ ] Deceleration-sufficiency validation against `tpt-t-urban-car`'s
       planned trajectory
 - [ ] Dual-channel steer-by-wire/brake-by-wire failover monitoring and
