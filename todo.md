@@ -100,7 +100,10 @@ hardware bring-up → hardening/release.
 > Update: coverage-guided fuzz targets for the BSM core-data decoder and the UPER
 > primitives are in `crates/tpt-t-urban-v2x/fuzz`. Each ran for two minutes on the
 > Windows nightly with no crashes, about 7 million executions per target. The
-> run needs the MSVC ASan runtime on `PATH`. The `<10µs` benchmark is still open.
+> run needs the MSVC ASan runtime on `PATH`. A counting-allocator test (`crates/tpt-t-urban-v2x/tests/bsm_zero_alloc.rs`)
+> shows BSM core-data decode performs zero heap allocations, and the release
+> mean is about 0.3 µs on the host against the 10 µs budget. The J2735 ranges
+> are still unverified, so the BSM parsing item stays open.
 
 - [ ] Zero-copy ASN.1 UPER parser reading raw UDP packets from the C-V2X
       radio directly into pre-allocated rkyv structs
@@ -120,14 +123,18 @@ hardware bring-up → hardening/release.
 > (`perception::detect`), and an alpha-beta tracker keeps their identities and
 > velocities across frames (`perception::track`). An integration test runs the
 > sim's LiDAR into both: a moving box is tracked at about 2 m/s, and a static box
-> at rest. Open: 3D detection, classification, fusion of real sensor streams, and
+> at rest. Localization: 2D ICP scan matching against a known map
+> (`perception::localize`) gives 8 mm worst position error over 20 noise seeds
+> (2 cm LiDAR noise, perfect map, `sim/tests/lidar_localize.rs`). Through a 5 m
+> GNSS jump it gives 7 mm worst error (`sim/tests/gnss_lidar_handover.rs`). Those
+> are simulated, not real sensors or maps. Open: 3D detection, classification, fusion of real sensor streams, and
 > any sensor beyond the simulated LiDAR.
 - [ ] Multi-sensor fusion pipeline: LiDAR, Radar, Camera, Ultrasonic
 - [~] 3D object detection, tracking, and classification (2D detection and
       tracking from LiDAR points are done, with no classification and no 3D)
-- [ ] GNSS multipath/anomaly detection (e.g. 5-meter position jump in urban
+- [x] GNSS multipath/anomaly detection (e.g. 5-meter position jump in urban
       canyons)
-- [ ] Seamless fallback to LiDAR-based localization on GNSS anomaly,
+- [~] Seamless fallback to LiDAR-based localization on GNSS anomaly,
       maintaining sub-10cm accuracy
 - [ ] Curb/sidewalk edge detection support for `tpt-t-urban-delivery`
 - [ ] Ultrasonic curb-mounting verification support
@@ -166,7 +173,9 @@ hardware bring-up → hardening/release.
 
 - [ ] Deterministic Finite State Machine encoding local traffic rules (stop
       signs, right-of-way, speed limits)
-- [ ] Full intersection-state evaluation in <50µs
+- [~] Full intersection-state evaluation in <50µs (one approach evaluates in
+      about 2 ns on the host, `compliance/tests/evaluate_timing.rs`; no multi-approach
+      intersection state is built yet)
 - [ ] Cryptographically signed (Ed25519 via `ring`), human-readable
       justification generated for every decision (yield/proceed/stop)
 - [x] Hash-chained, append-only immutable audit ledger, surviving sudden
@@ -174,9 +183,10 @@ hardware bring-up → hardening/release.
 - [~] Logging integration: sensor data, V2X messages, planner outputs, and
       FSM decisions all recorded to the black-box ledger (`compliance::journal`
       encodes records. The sim writes guardian interventions and the run outcome
-      through `sim::journal`, and the chain verifies after a reopen. Sensor data,
-      V2X messages, planner outputs and FSM decisions have no producer to record
-      from yet)
+      through `sim::journal`, and the chain verifies after a reopen. FSM decisions
+      and guardian interventions from the pipeline are recorded by
+      `sim::journal::journal_pipeline`. Sensor data, V2X messages and planner
+      outputs have no producer to record from yet)
 
 ## Phase 7 — `tpt-t-urban-safety`
 > Status: guardian logic is done (latched AEB from TTC and braking sufficiency,
@@ -229,7 +239,10 @@ hardware bring-up → hardening/release.
 > Status: speed profile (curvature, accel and brake limits), pure pursuit
 > tracking, and the GLOSA advisory are done. Fastest-route planning over a
 > directed road graph (`routing` module) replans around closed edges. Open:
-> feeding closures from live V2X and map data, and emergency-vehicle SRM yield.
+> feeding closures from live V2X and map data. `car::preemption` turns an
+> emergency-vehicle alert into a pull-over along the MRM path, or a stop in
+> place when no shoulder fits. The alert's SRM source needs SRM decoding
+> (Phase 3).
 - [ ] Autonomous vehicle trajectory planning and decision-making for 4-wheel
       vehicles (robotaxis and autonomous transit shuttles)
 - [ ] Path generation, speed profiling, smooth kinematic control
@@ -238,24 +251,30 @@ hardware bring-up → hardening/release.
       exactly as a light turns red, avoiding harsh stops
 - [ ] Dynamic re-routing around road closures, construction zones, or heavy
       congestion using real-time V2X and map data
-- [ ] Emergency Vehicle Preemption: yield/pull-over response to an
+- [~] Emergency Vehicle Preemption: yield/pull-over response to an
       ambulance/fire-truck SRM broadcast
 
 ## Phase 10 — `tpt-t-urban-delivery`
 > Status: curb mount with ultrasonic verification, pedestrian yield with
-> hold-off, and the compartment lock with a constant-time code check are done.
+> hold-off, and the compartment lock with a constant-time code check are done. The
+> yield signal is a visual indication while yielding and one audible chime at
+> onset (`Yielder::signal`); the lamp and speaker are hardware, not tested here.
 > A static-obstacle detour planner for a straight sidewalk is in
 > `delivery::sidewalk`. It returns the smallest detour that clears every obstacle
 > with the bot's footprint, and stop when none fits. Open: navigation off a
 > straight sidewalk, moving obstacles, sensor-driven obstacle input, and the
-> jaywalker integration (Phase 16).
+> jaywalker reaction is in `delivery::reaction` and runs closed-loop
+> with the IMM predictor (`sim/tests/jaywalker_reaction.rs`): the bot yields,
+> stops 2.4 m short of the crossing point, peaks at 1.3 m/s² and the guardian
+> never engages AEB. The pedestrian is a noisy observation, not a sensor model,
+> and the Phase 16 flow is still open.
 - [ ] Curb detection and precise curb-mounting (verified by ultrasonic
       sensors from `tpt-t-urban-perception`)
 - [~] Sidewalk navigation and obstacle avoidance (static obstacles on a straight
       sidewalk: detour or stop; no route following, no moving obstacles)
-- [ ] Pedestrian right-of-way yielding with audible/visual polite signaling
+- [x] Pedestrian right-of-way yielding with audible/visual polite signaling
 - [ ] Secure package compartment lock/unlock management
-- [ ] Jaywalker-reaction integration: consume `tpt-t-urban-predict` trajectory
+- [~] Jaywalker-reaction integration: consume `tpt-t-urban-predict` trajectory
       cones and command smooth deceleration ahead of the guardian's AEB
       backstop
 
@@ -264,7 +283,9 @@ hardware bring-up → hardening/release.
 > SRM preemption, are done. Congestion optimization has its functions: a
 > demand-proportional green split with min and max bounds, corridor offsets for a
 > green wave, and a controller hook that applies new greens at the next phase
-> start. Open: a demand source for the optimizer (queue counts from V2X or
+> start. Demand for the optimizer is counted from vehicle positions
+> (`traffic::demand`) and is tested into the signal. Open: a live source for it
+> (V2X queue counts or
 > detection), and SPAT/MAP broadcast.
 - [ ] Intersection management (signal phasing coordination)
 - [~] Congestion optimization across managed intersections (functions and
@@ -290,12 +311,25 @@ hardware bring-up → hardening/release.
 > utilization and chain latency) is in `tpt-t-urban-core::schedule`. Thread
 > pinning is in `tpt-t-urban-core::affinity`: a thread can be pinned to a core
 > on Windows (tested) and Linux (compile-checked, not run). `sim::pipeline` runs
-> three stages on pinned threads (cores 0, 1, 2) in one program, passing messages
-> over the core bus. Frames arrive in order, both objects are tracked, and the
-> pins succeed on Windows (`cargo run --release -p tpt-t-urban-sim --example
-> pipeline`; host mean latency about 3 µs). Open: io_uring ingest, the predict
-> stage on its core, the 30 Hz and 100 Hz rates, measured worst cases on the
-> target, and the latency sign-off.
+> four threads on cores 0 to 3 in one program, passing messages over the core
+> bus. Core 1 runs perception and an IMM predictor per track, one second ahead.
+> Core 2 runs the `tpt-t-urban-car` pure-pursuit steering and speed profile and
+> the `tpt-t-urban-compliance` stop-sign FSM, and sends the edge a heartbeat with
+> the steering and the deceleration it plans. Core 3 runs the safety guardian
+> over the latest track and that heartbeat, and the limiter and watchdog, at
+> 100 Hz. In the sim's scene the moving box is 10 m ahead in the lane closing at
+> 8 m/s, so the guardian reaches AEB and the edge applies 1000 ‰ brake. The
+> planner steers 616 cdeg and asks for 1.25 m/s² to stop at the line 40 m ahead
+> (test `every_frame_crosses_all_four_stages`). Paced at 30 Hz on the host
+> (`run_paced`), the mean sensor to actuator is about 6 ms against a 33.3 ms
+> frame. Worst cases on this host reach 33 ms in some runs, from Windows
+> scheduling spikes and CPU load from parallel tests, so the test asserts the
+> mean, not the worst case. The unpaced run is throttled by the edge tick, so its
+> latencies are not a measure. The ego is held at one pose and speed, so the FSM
+> only sees the approach and not its stop sequence, and the ledger is not
+> written. Open: io_uring ingest, the full stop sequence and the ledger on core
+> 2, measured worst cases on the target, zero-contention verification, and the
+> latency sign-off.
 - [ ] Core 0: io_uring ingest of raw LiDAR/Camera/Radar data into
       slab-allocated ring buffers
 - [ ] Core 1: `tpt-t-urban-perception` + `tpt-t-urban-predict` pinned,
@@ -403,16 +437,21 @@ hardware bring-up → hardening/release.
 > Status: a last-mile data-flow test runs GLOSA, stop-sign compliance, pedestrian
 > yield, curb mount and unlock across the crates, with every decision in a
 > verified ledger (`crates/tpt-t-urban-sim/tests/last_mile.rs`). A sensor-driven
-> crossing test is also in. Open: the flow driven entirely by sensor models,
+> crossing test is also in. `last_mile_sensor_flow.rs` runs the GNSS jump, LiDAR localization, the jaywalker
+> reaction and the guardian from sensor models, with each decision in the ledger.
+> The same test also blurs the face in the crossing frame, mounts at the curb and
+> opens the compartment, with the camera frame and the curb gap as models.
+> Open: SPAT speed advice (no SPAT encoder), and a real camera and curb sensor,
 > and the cross-crate allocation audit.
-- [ ] Full "Last-Mile Urban Delivery" data-flow test (spec.txt §6):
+- [~] Full "Last-Mile Urban Delivery" data-flow test (spec.txt §6):
       departure → SPAT-driven smooth speed adjustment approaching an
       intersection → GNSS urban-canyon anomaly with seamless LiDAR fallback
       → jaywalker detected/predicted (1.5s intersection horizon) → smooth
       deceleration commanded + guardian validation (AEB backstop) → face
       blur applied before local SSD write → curb-mount + secure-compartment
       delivery → hash-chained audit log proving detection, correct
-      yielding, and safe distance
+      yielding, and safe distance (partial: everything except SPAT speed advice; the
+      flow is `sim/tests/last_mile_sensor_flow.rs`)
 - [x] Dependency-matrix conformance audit against §7 (confirm no banned
       dependency — heavy ASN.1 compilers, OpenCV/SLAM frameworks, black-box
       NN traffic rules, heavy ML inference, serde/bincode/prost, tokio/
@@ -456,7 +495,14 @@ hardware bring-up → hardening/release.
       AEB/MRM trigger path
 
 ## Phase 18 — Hardware Bring-Up & Field Validation
-- [ ] Zero-alloc CAN/Ethernet actuation parser/driver bring-up
+> Status: the actuation frame codec is in `tpt-t-urban-edge::frame`: an 8-byte
+> payload with a CRC-8, checked on decode. Every single-bit flip is caught and a
+> valid CRC on an out-of-range field is refused. It allocates nothing and builds
+> for four embedded targets. The layout is this repository's own, not a vehicle's
+> signal database, which the repository does not have. No bus driver exists, so the
+> item stays partial.
+- [~] Zero-alloc CAN/Ethernet actuation parser/driver bring-up (frame codec done;
+      no driver, no Ethernet)
 - [ ] Hardware-in-the-loop testing harness
 - [ ] Physical steer-by-wire/brake-by-wire/throttle driver bring-up on a
       target vehicle (robotaxi or sidewalk delivery bot)
