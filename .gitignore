@@ -34,3 +34,7 @@ Thumbs.db
 
 # Docs
 /target/doc/
+
+# cargo-fuzz generated corpus and crash artifacts
+/crates/tpt-t-urban-v2x/fuzz/corpus/
+/crates/tpt-t-urban-v2x/fuzz/artifacts/

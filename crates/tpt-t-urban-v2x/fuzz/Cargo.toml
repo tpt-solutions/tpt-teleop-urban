@@ -1,0 +1,32 @@
+[package]
+name = "tpt-t-urban-v2x-fuzz"
+version = "0.0.0"
+description = "Coverage-guided fuzz targets for the tpt-t-urban-v2x UPER parser."
+edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["TPT Solutions"]
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+tpt-t-urban-v2x = { path = ".." }
+
+[[bin]]
+name = "bsm_core"
+path = "fuzz_targets/bsm_core.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "uper_primitives"
+path = "fuzz_targets/uper_primitives.rs"
+test = false
+doc = false
+bench = false
+
+# Fuzzing is its own workspace, so the main workspace does not build it.
+[workspace]
