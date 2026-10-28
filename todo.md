@@ -171,8 +171,9 @@ hardware bring-up → hardening/release.
 > crossing hit on nine seeds of 2000. The shoulder pull-over path and its
 > lateral-acceleration bound are in `tpt-t-urban-car::pull_over`. In the sim, a
 > guardian MRM drives the vehicle along the pull-over path and it stops on the
-> shoulder (`tpt-t-urban-sim::mrm`). The live planner still brakes in place, so
-> the switch is not wired. Open: running on a separate partition, the <50 ms
+> shoulder (`tpt-t-urban-sim::mrm`). `pull_over::choose` picks the pull-over when
+> the shoulder fits and the in-place brake when it does not. The live planner
+> does not call either yet. Open: running on a separate partition, the <50 ms
 > budget (needs measurement on target), wiring the pull-over into the planner,
 > and dual-channel brake failover.
 
@@ -182,8 +183,9 @@ hardware bring-up → hardening/release.
       primary planner fails to react
 - [~] Minimal Risk Maneuver (MRM) — e.g. safe pull-to-shoulder — when AEB
       alone is insufficient (the pull-over path runs through the plant from a
-      guardian MRM, and stops on the shoulder in the sim; the live planner
-      still brakes in place, so the switch is not wired)
+      guardian MRM, and stops on the shoulder in the sim; the choice between
+      pull-over and braking in place is done; the live planner does not call
+      it yet)
 - [ ] Deceleration-sufficiency validation against `tpt-t-urban-car`'s
       planned trajectory
 - [ ] Dual-channel steer-by-wire/brake-by-wire failover monitoring and
