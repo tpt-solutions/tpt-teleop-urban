@@ -12,6 +12,7 @@
 //! injection, and the egui visualizer. Those are Phase 15 items in `todo.md`.
 
 pub mod gnss;
+pub mod journal;
 pub mod mrm;
 pub mod plant;
 pub mod render;
