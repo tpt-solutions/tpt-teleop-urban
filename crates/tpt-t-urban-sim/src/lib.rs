@@ -5,12 +5,15 @@
 //!   noisy measurements → IMM prediction → guardian → vehicle.
 //! - [`mod@sweep`]: seeded sweep over many crossings, checking the guardian against
 //!   the crossings that were avoidable.
+//! - [`drive`]: closed-loop route driving, with the guardian watching the
+//!   planner heartbeat and handing over to the pull-over MRM on a stall.
 //! - [`gnss`]: GNSS model with noise, multipath jumps, and denial, for driving
 //!   the localization source selector.
 //!
 //! Not implemented yet: 3D city rendering, sensor raycasting, V2X traffic
 //! injection, and the egui visualizer. Those are Phase 15 items in `todo.md`.
 
+pub mod drive;
 pub mod gnss;
 pub mod journal;
 pub mod mrm;
