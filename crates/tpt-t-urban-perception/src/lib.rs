@@ -3,6 +3,7 @@
 //! - [`gnss`]: kinematic GNSS jump detection and LiDAR fallback with hysteresis.
 //! - [`curb`]: curb edge detection from a lateral height profile.
 //! - [`fusion`]: inverse-variance fusion of two position estimates.
+//! - [`localize`]: LiDAR scan matching (2D ICP) against a known static map.
 //! - [`detect`]: groups LiDAR points into objects. Two-dimensional, no classes.
 //! - [`track`]: associates detections across frames and estimates velocity.
 //!
@@ -13,6 +14,7 @@ pub mod curb;
 pub mod detect;
 pub mod fusion;
 pub mod gnss;
+pub mod localize;
 pub mod track;
 
 pub use curb::{Curb, detect_curb};
