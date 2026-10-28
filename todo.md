@@ -289,9 +289,13 @@ hardware bring-up → hardening/release.
 > Status: a schedulability check for the spec's pinned layout (per-core
 > utilization and chain latency) is in `tpt-t-urban-core::schedule`. Thread
 > pinning is in `tpt-t-urban-core::affinity`: a thread can be pinned to a core
-> on Windows (tested) and Linux (compile-checked, not run). Open: running the
-> stages on pinned threads in a single program, measured worst cases, and the
-> target-hardware latency sign-off.
+> on Windows (tested) and Linux (compile-checked, not run). `sim::pipeline` runs
+> three stages on pinned threads (cores 0, 1, 2) in one program, passing messages
+> over the core bus. Frames arrive in order, both objects are tracked, and the
+> pins succeed on Windows (`cargo run --release -p tpt-t-urban-sim --example
+> pipeline`; host mean latency about 3 µs). Open: io_uring ingest, the predict
+> stage on its core, the 30 Hz and 100 Hz rates, measured worst cases on the
+> target, and the latency sign-off.
 - [ ] Core 0: io_uring ingest of raw LiDAR/Camera/Radar data into
       slab-allocated ring buffers
 - [ ] Core 1: `tpt-t-urban-perception` + `tpt-t-urban-predict` pinned,
