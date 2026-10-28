@@ -25,11 +25,19 @@ pub struct Pose {
 /// the path is too short to track and the caller should stop.
 #[must_use]
 pub fn pure_pursuit(pose: Pose, path: &[Point], lookahead: f32, wheelbase: f32) -> Option<f32> {
-    let target = path.iter().find(|p| {
+    let distance = |p: &Point| {
         let dx = p.x - pose.x;
         let dy = p.y - pose.y;
-        (dx * dx + dy * dy).sqrt() >= lookahead
-    })?;
+        (dx * dx + dy * dy).sqrt()
+    };
+    // Search forward from the point nearest the vehicle. Points behind it are
+    // already passed, and would pull the target back toward the start.
+    let nearest = path
+        .iter()
+        .enumerate()
+        .min_by(|a, b| distance(a.1).total_cmp(&distance(b.1)))?
+        .0;
+    let target = path[nearest..].iter().find(|p| distance(p) >= lookahead)?;
     // Target offset in the vehicle frame: rotate by -yaw.
     let dx = target.x - pose.x;
     let dy = target.y - pose.y;
@@ -102,5 +110,24 @@ mod tests {
             yaw: 0.0,
         };
         assert_eq!(pure_pursuit(pose, &path, 5.0, 2.7), None);
+    }
+
+    #[test]
+    fn the_target_is_ahead_of_the_vehicle_not_at_the_start_of_the_path() {
+        // The path starts 3 m to the right and runs level from x = 20. A vehicle
+        // at x = 25 on the level section must not steer back toward the start.
+        let path: Vec<Point> = (0..=50)
+            .map(|i| Point {
+                x: i as f32,
+                y: if i < 20 { -3.0 } else { 0.0 },
+            })
+            .collect();
+        let pose = Pose {
+            x: 25.0,
+            y: 0.0,
+            yaw: 0.0,
+        };
+        let steer = pure_pursuit(pose, &path, 4.0, 2.7).expect("path continues ahead");
+        assert!(steer.abs() < 0.01, "steered {steer} toward the path behind");
     }
 }
