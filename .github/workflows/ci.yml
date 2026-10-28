@@ -33,6 +33,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-unknown-linux-gnu
+      - name: Install aarch64 cross compiler
+        # `ring` compiles C/asm in its build script, so cargo needs a cross gcc
+        # even for `cargo check`.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
       - uses: Swatinem/rust-cache@v2
       - name: Check workspace for aarch64
         env:
@@ -51,4 +57,5 @@ jobs:
       - name: Build and test SIMD crates
         env:
           RUSTFLAGS: -D warnings
-        run: cargo test -p tpt-t-urban-predict --features simd -p tpt-t-urban-privacy
+        # `+nightly` overrides rust-toolchain.toml, which pins stable.
+        run: cargo +nightly test -p tpt-t-urban-predict --features simd -p tpt-t-urban-privacy
