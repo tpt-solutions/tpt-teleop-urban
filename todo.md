@@ -96,6 +96,11 @@ hardware bring-up → hardening/release.
 > every UPER primitive with random bytes and extreme bounds (coverage-guided
 > fuzzing is still not done). MAP, SPAT and SRM are still not started. Writing those decoders without the SAE ASN.1 module would mean
 > guessing at wire formats, so they stay open.
+>
+> Update: coverage-guided fuzz targets for the BSM core-data decoder and the UPER
+> primitives are in `crates/tpt-t-urban-v2x/fuzz`. Each ran for two minutes on the
+> Windows nightly with no crashes, about 7 million executions per target. The
+> run needs the MSVC ASan runtime on `PATH`. The `<10µs` benchmark is still open.
 
 - [ ] Zero-copy ASN.1 UPER parser reading raw UDP packets from the C-V2X
       radio directly into pre-allocated rkyv structs
@@ -105,8 +110,8 @@ hardware bring-up → hardening/release.
       message parsing
 - [ ] Non-Line-of-Sight (NLOS) BSM relay handling (vehicles around blind
       corners/behind trucks)
-- [ ] Fuzz/property tests for the zero-copy UPER parser against malformed
-      frames
+- [x] Fuzz/property tests for the zero-copy UPER parser against malformed
+      frames (cargo-fuzz targets plus a property test; a CI fuzz job is not wired)
 
 ## Phase 4 — `tpt-t-urban-perception`
 > Status: GNSS kinematic jump detection, LiDAR fallback with hysteresis, and
@@ -140,24 +145,32 @@ hardware bring-up → hardening/release.
 
 ## Phase 6 — `tpt-t-urban-compliance`
 > Status: stop-sign / speed-limit FSM with reasons, and an Ed25519-signed,
-> SHA-256 hash-chained in-memory ledger, are done. Open: full rule set,
-> durable power-loss-safe storage, and the <50µs timing check.
+> SHA-256 hash-chained ledger, are done. The ledger is now durable: each append
+> is synced before it returns, and a torn final record is cut off on open
+> (`compliance::store`). Power-loss behavior is tested with simulated torn
+> writes, not a real power cut on target storage. Open: full rule set, and the
+> <50µs timing check.
 
 - [ ] Deterministic Finite State Machine encoding local traffic rules (stop
       signs, right-of-way, speed limits)
 - [ ] Full intersection-state evaluation in <50µs
 - [ ] Cryptographically signed (Ed25519 via `ring`), human-readable
       justification generated for every decision (yield/proceed/stop)
-- [ ] Hash-chained, append-only immutable audit ledger, surviving sudden
-      power loss
+- [x] Hash-chained, append-only immutable audit ledger, surviving sudden
+      power loss (verified with simulated torn writes; target storage not yet tested)
 - [ ] Logging integration: sensor data, V2X messages, planner outputs, and
       FSM decisions all recorded to the black-box ledger
 
 ## Phase 7 — `tpt-t-urban-safety`
 > Status: guardian logic is done (latched AEB from TTC and braking sufficiency,
-> latched MRM from planner heartbeat, reset at rest). Open: running on a separate
-> partition, the <50 ms budget (needs measurement on target), shoulder-pull
-> MRM path planning, and dual-channel brake failover.
+> latched MRM from planner heartbeat, reset at rest). The sufficiency test now
+> requires the planner to stop 1 m short of the obstacle, after a 50 ms reaction.
+> The TTC threshold grows with the time a full stop takes. A seeded sweep of
+> crossings (`tpt-t-urban-sim`, `sweep` module) found the old rules let a stop
+> end inside the pedestrian contact zone, and it now finds no avoidable
+> crossing hit on nine seeds of 2000. Open: running on a separate partition, the
+> <50 ms budget (needs measurement on target), shoulder-pull MRM path planning,
+> and dual-channel brake failover.
 
 - [ ] Independent, redundant safety "guardian" state machine (separate
       compute partition from the primary planner)
@@ -218,22 +231,29 @@ hardware bring-up → hardening/release.
 
 ## Phase 11 — `tpt-t-urban-traffic` (infrastructure-side deployment)
 > Status: fixed-time signal controller with yellow and all-red clearance, and
-> SRM preemption, are done. Open: congestion optimization and SPAT/MAP broadcast.
+> SRM preemption, are done. Congestion optimization has its functions: a
+> demand-proportional green split with min and max bounds, corridor offsets for a
+> green wave, and a controller hook that applies new greens at the next phase
+> start. Open: a demand source for the optimizer (queue counts from V2X or
+> detection), and SPAT/MAP broadcast.
 - [ ] Intersection management (signal phasing coordination)
-- [ ] Congestion optimization across managed intersections
+- [~] Congestion optimization across managed intersections (functions and
+      controller hook done; no demand source feeds them yet)
 - [ ] Priority routing for emergency vehicles or transit (SRM issuance)
 - [ ] V2X broadcast integration (SPAT/MAP outward to approaching vehicles)
 
 ## Phase 12 — `tpt-t-urban-edge` (`no_std`, bare-metal/RTOS)
 > Status: `no_std` actuation limiter, watchdog, and dual-channel failover are
-> done, and the crate builds for `thumbv7em-none-eabihf`. Open: bare-metal
-> drivers, CAN/Ethernet actuation, and validation on other target platforms.
+> done. The crate builds for `thumbv6m-none-eabi`, `thumbv7em-none-eabihf`,
+> `thumbv8m.main-none-eabihf` and `riscv32imac-unknown-none-elf`. Builds only, not
+> run on hardware. Open: bare-metal drivers, and CAN/Ethernet actuation.
 - [ ] Bare-metal/RTOS execution layer for vehicle actuation
 - [ ] Direct, deterministic steer-by-wire control
 - [ ] Direct, deterministic brake-by-wire control
 - [ ] Direct, deterministic throttle control
 - [ ] Hardware watchdog integration + watchdog-feeding logic
-- [ ] `no_std` build validated for target embedded platforms
+- [x] `no_std` build validated for target embedded platforms (builds for four
+      targets; hardware runs are open under Phase 18)
 
 ## Phase 13 — Thread-Per-Core Integration (spec.txt §4.5)
 > Status: a schedulability check for the spec's pinned layout (per-core
@@ -268,10 +288,15 @@ hardware bring-up → hardening/release.
 > drive the vehicle until the guardian clears.
 > `Assist` blending is not implemented (steering passes, throttle held). The
 > bridge spec defers continuous blended control, so this is not a spec gap.
-> Open: `get_domain_state` reports a sensor fault until `update_state` is called
-> with a real estimate. Nothing feeds it yet.
-> Open: `get_sensor_feed` returns no video, LiDAR or haptics. Video redaction
-> exists (`redact_for_operator`) but is not connected to the feed.
+> `get_domain_state` takes its position from `update_localization`, which clears
+> the sensor fault. `set_fault` raises or clears fault bits. Battery has no source.
+> `get_sensor_feed` carries video and point clouds. Video is blurred by
+> `push_video` before it is queued, so only the redacted copy leaves the vehicle.
+> Point clouds are passed through. Haptics and audio have no source.
+> Traffic law: `update_compliance` runs `compliance::evaluate`, advances the
+> stop-sign approach state, and caps the actuators with its decision.
+> `begin_stop_approach` must be called when a route enters a stop sign, since the
+> FSM ignores stop signs until then.
 > Emergency stop applies full brake and zero throttle on the first tick. It
 > bypasses the slew limit (`Limiter::emergency_brake`), and steering holds.
 > Trade-off accepted: a stop may jerk the vehicle once, where a slew-limited
@@ -285,15 +310,15 @@ hardware bring-up → hardening/release.
 - [x] Implement `on_control_command`: steering-wheel angle / pedal position
       (or joystick) → steer-by-wire and brake-by-wire commands via
       `tpt-t-urban-edge`. The actuation is stored in `last_actuation()`
-- [ ] Implement `get_domain_state` (vehicle position, battery/fault status)
-      and `get_sensor_feed` (video, LiDAR, telemetry, haptic). Telemetry comes
-      from `update_state`, which has no source yet
-- [ ] Traffic-law enforcement during teleoperation: apply
+- [~] Implement `get_domain_state` (vehicle position, battery/fault status)
+      and `get_sensor_feed` (video, LiDAR, telemetry, haptic). Position, faults,
+      video and point clouds are wired. Battery, haptics and audio have no source
+- [x] Traffic-law enforcement during teleoperation: apply
       `tpt-t-urban-compliance` FSM constraints (speed limits, stop signs)
-      even while a human is driving (the gate exists; the compliance feed does
-      not yet drive it, so this stays open)
-- [ ] Privacy protection during teleoperation: route video feeds through
+      even while a human is driving (`update_compliance` feeds the gate)
+- [x] Privacy protection during teleoperation: route video feeds through
       `tpt-t-urban-privacy` before transmission to the remote operator
+      (`push_video` redacts before queueing)
 - [x] Return-to-autonomy handling once the vehicle clears the handover
       condition. Gated on the guardian's MRM latch being cleared at rest. The
       construction-zone-cleared case waits on the same planner signal as above
@@ -302,7 +327,11 @@ hardware bring-up → hardening/release.
 
 ## Phase 15 — `tpt-t-urban-sim` + Visualizer
 > Status: a kinematic bicycle plant and a crossing-pedestrian scenario (noisy
-> measurements → IMM → guardian → plant) are done. Open: 3D city, sensor
+> measurements → IMM → guardian → plant) are done. A seeded sweep over crossings
+> (`sweep` module, `cargo run --release -p tpt-t-urban-sim --example sweep`) checks
+> the guardian on every crossing that full braking could have avoided. A GNSS model
+> with multipath and denial windows drives the localization source selector, and
+> the chain is tested through it (`tests/gnss_canyon.rs`). Open: 3D city, sensor
 > raycasting, V2X traffic injection, and the egui visualizer. Headless SVG
 > rendering of the scenario trace stands in for the visualizer for now
 > (`cargo run -p tpt-t-urban-sim --example render_crossing`).
@@ -313,10 +342,13 @@ hardware bring-up → hardening/release.
       blur, radar point generation
 - [ ] V2X network simulation: inject realistic BSM/SPAT traffic with
       configurable latency and packet loss
-- [ ] GNSS multipath and denial modeling for urban canyon scenarios
-- [ ] Scenario injection: automatically run thousands of edge cases (e.g.
+- [x] GNSS multipath and denial modeling for urban canyon scenarios (noise,
+      5 m multipath jumps and denial windows, tested through the source selector;
+      the LiDAR side is modeled as ground truth, so sub-10 cm is not shown here)
+- [~] Scenario injection: automatically run thousands of edge cases (e.g.
       "pedestrian runs into street at 30mph") to validate the safety
-      guardian and compliance FSM
+      guardian and compliance FSM (the guardian is swept over 2000 crossings
+      per seed, and the compliance FSM is not in the sweep yet)
 - [ ] `egui` (MIT) visualizer binary: top-down 2D/3D view of the vehicle,
       predicted trajectories of all agents, and the active traffic-rule
       FSM state
@@ -399,8 +431,12 @@ hardware bring-up → hardening/release.
 > Status: workspace clippy, nightly clippy for predict and privacy, a
 > random-input decoder test, and a host-machine budget check are done
 > (`cargo run --release -p tpt-t-urban-sim --example budgets`). All host
-> figures are under budget. Target-hardware measurement is open, as are
-> coverage-guided fuzzing and the docs and release steps.
+> figures are under budget. Target-hardware measurement is open, as are the
+> release steps. Coverage-guided fuzzing now runs for the V2X decoders (Phase 3).
+> Crate-level rustdoc is audited: all 13 crates have module docs, and `cargo doc`
+> builds clean with the default lints. Item-level docs are incomplete. Running
+> `cargo doc` with `RUSTDOCFLAGS="-W missing_docs"` reports 185 items with no docs,
+> across 12 crates (all but teleop).
 - [x] `cargo clippy --workspace --all-targets -- -D warnings` clean
       (stable workspace)
 - [x] Nightly clippy pass clean for `tpt-t-urban-predict` and
@@ -408,9 +444,12 @@ hardware bring-up → hardening/release.
 - [ ] Performance benchmarks validated against every spec target: <10µs BSM
       parse, <50µs compliance FSM eval, <2ms/frame predict, <3ms privacy
       blur, <50ms guardian AEB reaction, sub-10cm GNSS-denied localization
-- [ ] Fuzz/property testing for custom zero-allocation parsers (V2X UPER)
+- [x] Fuzz/property testing for custom zero-allocation parsers (V2X UPER)
+      (cargo-fuzz targets for BSM and the UPER primitives, plus property tests;
+      a longer campaign and a CI job are still to do)
 - [~] Developer docs complete (`docs/quickstart.md`, `docs/ARCHITECTURE.md`,
       crate-level rustdoc). Both docs are written and their commands were run.
-      Crate-level rustdoc is not audited yet.
-- [ ] README finalized
+      Crate-level rustdoc is audited. Item-level docs are open (185 items).
+- [~] README finalized (status section and test instructions updated; wording
+      needs a review before the release)
 - [ ] Tag `v1.0.0` — "v1 Monolithic Release"

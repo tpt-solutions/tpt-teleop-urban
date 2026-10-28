@@ -9,9 +9,13 @@ Design doc: [spec.txt](spec.txt). Teleop integration contract:
 
 ## Status
 
-Pre-release (v1.0.0 target). Phase 0 (workspace setup) is in place: every
-crate exists as a stub with no behavior yet. Implementation proceeds phase by
-phase as tracked in [todo.md](todo.md).
+Pre-release (v1.0.0 target). Each crate implements part of its scope, and the
+workspace tests pass. Open work is tracked phase by phase in
+[todo.md](todo.md). The largest gaps are the V2X decoders for MAP, SPAT and SRM,
+which need the paywalled SAE J2735 module; sensor-driven perception; the egui
+visualizer; and all target-hardware measurements. `cargo test --workspace`
+runs the tests, and `cargo run -p tpt-t-urban-sim --example sweep` runs the
+seeded crossing sweep.
 
 ## Workspace Crates
 
