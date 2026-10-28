@@ -282,8 +282,11 @@ hardware bring-up → hardening/release.
 
 ## Phase 13 — Thread-Per-Core Integration (spec.txt §4.5)
 > Status: a schedulability check for the spec's pinned layout (per-core
-> utilization and chain latency) is in `tpt-t-urban-core::schedule`. Open: thread
-> pinning, measured worst cases, and the target-hardware latency sign-off.
+> utilization and chain latency) is in `tpt-t-urban-core::schedule`. Thread
+> pinning is in `tpt-t-urban-core::affinity`: a thread can be pinned to a core
+> on Windows (tested) and Linux (compile-checked, not run). Open: running the
+> stages on pinned threads in a single program, measured worst cases, and the
+> target-hardware latency sign-off.
 - [ ] Core 0: io_uring ingest of raw LiDAR/Camera/Radar data into
       slab-allocated ring buffers
 - [ ] Core 1: `tpt-t-urban-perception` + `tpt-t-urban-predict` pinned,
