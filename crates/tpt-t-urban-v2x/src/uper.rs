@@ -172,22 +172,46 @@ pub const fn bits_for_range(range: u64) -> u32 {
     }
 }
 
-#[cfg(test)]
-pub(crate) struct BitWriter {
+/// Writes UPER fields, most significant bit first. The inverse of [`BitReader`].
+///
+/// A field that does not fit its constraint is refused, so an encoder cannot
+/// produce a message the decoder would reject.
+#[derive(Clone, Debug, Default)]
+pub struct BitWriter {
     bytes: Vec<u8>,
     pos: usize,
 }
 
-#[cfg(test)]
 impl BitWriter {
-    pub(crate) fn new() -> Self {
+    /// An empty writer.
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             bytes: Vec::new(),
             pos: 0,
         }
     }
 
-    pub(crate) fn write_bits(&mut self, value: u64, n: u32) {
+    /// Bits written so far.
+    #[must_use]
+    pub const fn bit_len(&self) -> usize {
+        self.pos
+    }
+
+    /// Writes the low `n` bits of `value`, most significant first. `n` must be at
+    /// most 64, and `value` must fit in `n` bits.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UperError::Unsupported`] for `n > 64`, and
+    /// [`UperError::OutOfRange`] if `value` does not fit.
+    pub fn write_bits(&mut self, value: u64, n: u32) -> Result<()> {
+        if n > 64 {
+            return Err(UperError::Unsupported);
+        }
+        if n < 64 && value >> n != 0 {
+            return Err(UperError::OutOfRange);
+        }
         for i in (0..n).rev() {
             if self.pos.is_multiple_of(8) {
                 self.bytes.push(0);
@@ -198,15 +222,47 @@ impl BitWriter {
             }
             self.pos += 1;
         }
+        Ok(())
     }
 
-    pub(crate) fn write_constrained_whole(&mut self, value: i64, lb: i64, ub: i64) {
-        let range = constrained_range(lb, ub).expect("valid bounds");
+    /// X.691 12: one bit, 1 for TRUE.
+    pub fn write_bool(&mut self, value: bool) {
+        // One bit always fits, so this cannot fail.
+        let _ = self.write_bits(u64::from(value), 1);
+    }
+
+    /// X.691 11.5 (UNALIGNED): a constrained whole number in `lb..=ub`, sent as
+    /// the offset from `lb` in the minimum number of bits for the range.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UperError::OutOfRange`] if `value` is outside `lb..=ub`, and
+    /// [`UperError::Unsupported`] for inverted bounds.
+    pub fn write_constrained_whole(&mut self, value: i64, lb: i64, ub: i64) -> Result<()> {
+        let range = constrained_range(lb, ub)?;
+        if value < lb || value > ub {
+            return Err(UperError::OutOfRange);
+        }
         let offset = (i128::from(value) - i128::from(lb)) as u64;
-        self.write_bits(offset, bits_for_range(range));
+        self.write_bits(offset, bits_for_range(range))
     }
 
-    pub(crate) fn into_bytes(self) -> Vec<u8> {
+    /// X.691 17.6 to 17.7: fixed-length octets, with no length determinant.
+    ///
+    /// # Errors
+    ///
+    /// Never fails for octets, but returns the writer's error type for
+    /// consistency with the other fields.
+    pub fn write_octets(&mut self, octets: &[u8]) -> Result<()> {
+        for &octet in octets {
+            self.write_bits(u64::from(octet), 8)?;
+        }
+        Ok(())
+    }
+
+    /// The bytes written, with the last byte padded with zero bits.
+    #[must_use]
+    pub fn into_bytes(self) -> Vec<u8> {
         self.bytes
     }
 }
@@ -303,9 +359,9 @@ mod tests {
     #[test]
     fn writer_and_reader_agree_on_mixed_widths() {
         let mut w = BitWriter::new();
-        w.write_constrained_whole(-2000, -2000, 2001);
-        w.write_bits(0b101, 3);
-        w.write_constrained_whole(7, 0, 9);
+        w.write_constrained_whole(-2000, -2000, 2001).unwrap();
+        w.write_bits(0b101, 3).unwrap();
+        w.write_constrained_whole(7, 0, 9).unwrap();
         let bytes = w.into_bytes();
 
         let mut r = BitReader::new(&bytes);

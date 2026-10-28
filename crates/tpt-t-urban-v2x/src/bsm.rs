@@ -14,7 +14,7 @@
 //!
 //! Parsing performs no heap allocation. The caller owns the input bytes.
 
-use crate::uper::{BitReader, Result};
+use crate::uper::{BitReader, BitWriter, Result};
 
 // Unverified J2735 ranges (see module docs). Bit widths follow from them.
 /// Valid range of `msgCnt`, in raw units. Unverified against J2735.
@@ -208,6 +208,46 @@ fn ranged(reader: &mut BitReader<'_>, (lb, ub): (i64, i64)) -> Result<i64> {
     reader.constrained_whole(lb, ub)
 }
 
+impl BsmCoreData {
+    /// Encodes the core data, field by field in the order [`BsmCoreData::decode`]
+    /// reads them. A field outside its range is refused, so the output always
+    /// decodes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UperError::OutOfRange`] for a field outside its range.
+    pub fn encode(&self, w: &mut BitWriter) -> Result<()> {
+        let s =
+            |w: &mut BitWriter, v: i64, (lb, ub): (i64, i64)| w.write_constrained_whole(v, lb, ub);
+        s(w, self.msg_cnt.into(), MSG_CNT_RANGE)?;
+        w.write_octets(&self.temporary_id)?;
+        s(w, self.sec_mark.into(), SEC_MARK_RANGE)?;
+        s(w, self.lat.into(), LAT_RANGE)?;
+        s(w, self.lon.into(), LON_RANGE)?;
+        s(w, self.elev.into(), ELEV_RANGE)?;
+        s(w, self.accuracy.semi_major.into(), SEMI_AXIS_RANGE)?;
+        s(w, self.accuracy.semi_minor.into(), SEMI_AXIS_RANGE)?;
+        s(w, self.accuracy.orientation.into(), ORIENTATION_RANGE)?;
+        s(w, self.transmission.into(), TRANSMISSION_RANGE)?;
+        s(w, self.speed.into(), SPEED_RANGE)?;
+        s(w, self.heading.into(), HEADING_RANGE)?;
+        s(w, self.steer_angle.into(), STEER_ANGLE_RANGE)?;
+        s(w, self.accel.long.into(), ACCEL_LONG_RANGE)?;
+        s(w, self.accel.lat.into(), ACCEL_LAT_RANGE)?;
+        s(w, self.accel.vert.into(), ACCEL_VERT_RANGE)?;
+        s(w, self.accel.yaw.into(), YAW_RANGE)?;
+        w.write_bits(self.brakes.wheel_brakes.into(), WHEEL_BRAKES_BITS)?;
+        s(w, self.brakes.traction.into(), TRACTION_RANGE)?;
+        s(w, self.brakes.abs.into(), ABS_RANGE)?;
+        s(w, self.brakes.scs.into(), SCS_RANGE)?;
+        s(w, self.brakes.brake_boost.into(), BRAKE_BOOST_RANGE)?;
+        s(w, self.brakes.aux_brakes.into(), AUX_BRAKES_RANGE)?;
+        s(w, self.size.length.into(), VEHICLE_LENGTH_RANGE)?;
+        s(w, self.size.width.into(), VEHICLE_WIDTH_RANGE)?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,35 +255,7 @@ mod tests {
 
     fn encode(d: &BsmCoreData) -> Vec<u8> {
         let mut w = BitWriter::new();
-        w.write_constrained_whole(d.msg_cnt.into(), MSG_CNT_RANGE.0, MSG_CNT_RANGE.1);
-        for b in d.temporary_id {
-            w.write_bits(b.into(), 8);
-        }
-        let s =
-            |w: &mut BitWriter, v: i64, (lb, ub): (i64, i64)| w.write_constrained_whole(v, lb, ub);
-        s(&mut w, d.sec_mark.into(), SEC_MARK_RANGE);
-        s(&mut w, d.lat.into(), LAT_RANGE);
-        s(&mut w, d.lon.into(), LON_RANGE);
-        s(&mut w, d.elev.into(), ELEV_RANGE);
-        s(&mut w, d.accuracy.semi_major.into(), SEMI_AXIS_RANGE);
-        s(&mut w, d.accuracy.semi_minor.into(), SEMI_AXIS_RANGE);
-        s(&mut w, d.accuracy.orientation.into(), ORIENTATION_RANGE);
-        s(&mut w, d.transmission.into(), TRANSMISSION_RANGE);
-        s(&mut w, d.speed.into(), SPEED_RANGE);
-        s(&mut w, d.heading.into(), HEADING_RANGE);
-        s(&mut w, d.steer_angle.into(), STEER_ANGLE_RANGE);
-        s(&mut w, d.accel.long.into(), ACCEL_LONG_RANGE);
-        s(&mut w, d.accel.lat.into(), ACCEL_LAT_RANGE);
-        s(&mut w, d.accel.vert.into(), ACCEL_VERT_RANGE);
-        s(&mut w, d.accel.yaw.into(), YAW_RANGE);
-        w.write_bits(d.brakes.wheel_brakes.into(), WHEEL_BRAKES_BITS);
-        s(&mut w, d.brakes.traction.into(), TRACTION_RANGE);
-        s(&mut w, d.brakes.abs.into(), ABS_RANGE);
-        s(&mut w, d.brakes.scs.into(), SCS_RANGE);
-        s(&mut w, d.brakes.brake_boost.into(), BRAKE_BOOST_RANGE);
-        s(&mut w, d.brakes.aux_brakes.into(), AUX_BRAKES_RANGE);
-        s(&mut w, d.size.length.into(), VEHICLE_LENGTH_RANGE);
-        s(&mut w, d.size.width.into(), VEHICLE_WIDTH_RANGE);
+        d.encode(&mut w).expect("sample is in range");
         w.into_bytes()
     }
 
@@ -350,7 +362,7 @@ mod tests {
         // The long-acceleration range has 4002 values, so 12 bits can carry 4095,
         // one past the end of the range. The decoder must reject it.
         let mut w = BitWriter::new();
-        w.write_bits(4095, 12);
+        w.write_bits(4095, 12).unwrap();
         let raw = w.into_bytes();
         let err = BitReader::new(&raw)
             .constrained_whole(ACCEL_LONG_RANGE.0, ACCEL_LONG_RANGE.1)
@@ -382,5 +394,55 @@ mod tests {
                 (VEHICLE_WIDTH_RANGE.0..=VEHICLE_WIDTH_RANGE.1).contains(&i64::from(d.size.width))
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod encode_tests {
+    use super::*;
+    use crate::uper::UperError;
+
+    #[test]
+    fn a_field_outside_its_range_is_refused() {
+        let mut bsm = BsmCoreData {
+            msg_cnt: 0,
+            temporary_id: [0; 4],
+            sec_mark: 0,
+            lat: 0,
+            lon: 0,
+            elev: 0,
+            accuracy: PositionalAccuracy {
+                semi_major: 0,
+                semi_minor: 0,
+                orientation: 0,
+            },
+            transmission: 0,
+            speed: 0,
+            heading: 0,
+            steer_angle: 0,
+            accel: AccelerationSet4Way {
+                long: 0,
+                lat: 0,
+                vert: 0,
+                yaw: 0,
+            },
+            brakes: BrakeSystemStatus {
+                wheel_brakes: 0,
+                traction: 0,
+                abs: 0,
+                scs: 0,
+                brake_boost: 0,
+                aux_brakes: 0,
+            },
+            size: VehicleSize {
+                length: 0,
+                width: 0,
+            },
+        };
+        let mut ok = BitWriter::new();
+        assert_eq!(bsm.encode(&mut ok), Ok(()));
+        bsm.speed = 9_000;
+        let mut w = BitWriter::new();
+        assert_eq!(bsm.encode(&mut w), Err(UperError::OutOfRange));
     }
 }
