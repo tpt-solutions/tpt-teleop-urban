@@ -397,8 +397,9 @@ hardware bring-up → hardening/release.
       `DomainError::Adapter` now holds a `&'static str` (upstream commit
       198c3fa on `fix/domain-error-static-str`, breaking change, pushed
       manually). Also covered: `EventLoop::step`.
-      Open: the predict SIMD kernel (nightly only), and the ledger append, which
-      is audit rather than hot path, so it is not checked.
+      The predict SIMD kernel is covered too, on nightly with `--all-features`.
+      Open: the ledger append, which is audit rather than hot path, so it is not
+      checked.
 - [x] Full `cargo-deny` MIT-chain audit pass across the workspace (`cargo deny
       check`: advisories, bans, licenses and sources all pass. Duplicate-version
       warnings remain, from `windows-sys` 0.52 and 0.60, and are non-blocking)
