@@ -28,13 +28,14 @@
 
 use tpt_t_core::ser::cmd::{ControlCommand, MAGIC_COMMAND};
 use tpt_t_core::{Mode, ModeError, StateMachine};
-use tpt_t_domain_bridge::wire::{FAULT_SENSOR, HapticFeedback};
+use tpt_t_domain_bridge::wire::{FAULT_SENSOR, HapticFeedback, PointCloud, VideoFrame, VideoKind};
 use tpt_t_domain_bridge::{
     DomainError, DomainState, DomainTeleopInterface, OperatorId, Pose6DOF, SensorFeed,
 };
-use tpt_t_urban_compliance::Decision;
+use tpt_t_urban_compliance::{ApproachState, Decision, Evaluation, Observation, evaluate};
 use tpt_t_urban_edge::actuator::{MAX_PERMILLE, MAX_STEER_CDEG};
 use tpt_t_urban_edge::{Actuation, Limiter};
+use tpt_t_urban_perception::Estimate;
 use tpt_t_urban_privacy::{Frame, FrameError, Rect, RedactedFrame, Redactor};
 use tpt_t_urban_safety::{Command as GuardianCommand, Mode as GuardianMode};
 
@@ -77,8 +78,14 @@ pub struct TeleopAdapter {
     /// The guardian's latest mode. AEB or MRM overrides the operator.
     guardian: GuardianMode,
     /// Domain state reported upward. Starts as a sensor fault until
-    /// [`TeleopAdapter::update_state`] supplies a real estimate.
+    /// [`TeleopAdapter::update_localization`] supplies a real estimate.
     state: DomainState,
+    /// Stop-sign approach state, advanced by [`TeleopAdapter::update_compliance`].
+    approach: ApproachState,
+    /// Latest redacted video frame, taken by the next sensor feed.
+    video: Option<VideoFrame>,
+    /// Latest point cloud, taken by the next sensor feed.
+    point_cloud: Option<PointCloud>,
 }
 
 impl Default for TeleopAdapter {
@@ -105,13 +112,77 @@ impl TeleopAdapter {
                 battery_pct: 0.0,
                 fault_flags: FAULT_SENSOR,
             },
+            approach: ApproachState::Clear,
+            video: None,
+            point_cloud: None,
         }
     }
 
-    /// Replaces the reported domain state with a fresh estimate from
-    /// perception and localization.
+    /// Replaces the whole reported domain state, including battery and faults.
     pub fn update_state(&mut self, state: DomainState) {
         self.state = state;
+    }
+
+    /// Feeds the fused position from `perception` into the reported pose and
+    /// clears the sensor fault. The height is not estimated, so `z` is zero.
+    pub fn update_localization(&mut self, estimate: Estimate, timestamp_us: u64) {
+        self.state.timestamp_us = timestamp_us;
+        self.state.pose.position = [estimate.x, estimate.y, 0.0];
+        self.state.fault_flags &= !FAULT_SENSOR;
+    }
+
+    /// Raises or clears one `FAULT_*` bit in the reported state.
+    pub fn set_fault(&mut self, flag: u32, raised: bool) {
+        if raised {
+            self.state.fault_flags |= flag;
+        } else {
+            self.state.fault_flags &= !flag;
+        }
+    }
+
+    /// Marks the vehicle as approaching a stop line. The compliance FSM ignores
+    /// stop signs until this is called, so call it when the route enters one.
+    pub fn begin_stop_approach(&mut self) {
+        self.approach = ApproachState::Approaching;
+    }
+
+    /// Runs one compliance step, caps the actuators with its decision, and
+    /// returns the evaluation. The caller records its `reason` in the ledger.
+    pub fn update_compliance(&mut self, obs: &Observation) -> Evaluation {
+        let evaluation = evaluate(self.approach, obs);
+        self.approach = evaluation.next;
+        self.law = evaluation.decision;
+        evaluation
+    }
+
+    /// Queues a point cloud for the next sensor feed. A newer cloud replaces an
+    /// older one that was not yet taken.
+    pub fn push_point_cloud(&mut self, cloud: PointCloud) {
+        self.point_cloud = Some(cloud);
+    }
+
+    /// Blurs the detected regions of one RGB frame and queues the redacted copy
+    /// for the next sensor feed. The raw pixels are consumed here and never kept.
+    pub fn push_video(
+        &mut self,
+        mut pixels: Vec<u8>,
+        width: u32,
+        height: u32,
+        timestamp_us: u64,
+        detections: &[Rect],
+    ) -> Result<(), FrameError> {
+        let (w, h) = (width as usize, height as usize);
+        let mut scratch = vec![0u8; Redactor::scratch_len(detections, w, h)];
+        let frame = Frame::new(&mut pixels, w, h)?;
+        let redacted = self.redact_for_operator(frame, detections, &mut scratch)?;
+        self.video = Some(VideoFrame {
+            timestamp_us,
+            kind: VideoKind::Rgb,
+            width,
+            height,
+            data: redacted.pixels().to_vec(),
+        });
+        Ok(())
     }
 
     /// The actuator values from the last accepted command, if any.
@@ -264,11 +335,14 @@ impl DomainTeleopInterface for TeleopAdapter {
         self.state
     }
 
+    /// Drains the queued video and point cloud. Each one is sent once, so a
+    /// second call in the same tick returns none. Haptics and audio have no
+    /// source in this crate yet, so they are always empty.
     fn get_sensor_feed(&mut self) -> SensorFeed {
         SensorFeed {
             timestamp_us: self.state.timestamp_us,
-            video_frames: Vec::new(),
-            point_clouds: Vec::new(),
+            video_frames: self.video.take().into_iter().collect(),
+            point_clouds: self.point_cloud.take().into_iter().collect(),
             telemetry: self.state,
             haptic_data: HapticFeedback {
                 force_torque: [0.0; 6],
@@ -439,5 +513,134 @@ mod tests {
             &redacted,
             &detections
         ));
+    }
+
+    use tpt_t_domain_bridge::wire::FAULT_OVER_TEMP;
+
+    fn estimate(x: f32, y: f32) -> Estimate {
+        Estimate {
+            x,
+            y,
+            variance: 1.0,
+        }
+    }
+
+    fn stop_obs(distance_mm: i32, speed: u32) -> Observation {
+        Observation {
+            stop_sign: true,
+            distance_to_line_mm: distance_mm,
+            speed_mm_s: speed,
+            speed_limit_mm_s: 13_900,
+            conflict_on_right: false,
+        }
+    }
+
+    #[test]
+    fn localization_clears_the_sensor_fault_and_sets_the_pose() {
+        let mut a = TeleopAdapter::new();
+        assert_ne!(a.get_domain_state().fault_flags & FAULT_SENSOR, 0);
+        a.update_localization(estimate(12.5, -3.0), 42);
+        let state = a.get_domain_state();
+        assert_eq!(state.fault_flags & FAULT_SENSOR, 0);
+        assert_eq!(state.pose.position, [12.5, -3.0, 0.0]);
+        assert_eq!(state.timestamp_us, 42);
+    }
+
+    #[test]
+    fn faults_can_be_raised_and_cleared() {
+        let mut a = TeleopAdapter::new();
+        a.set_fault(FAULT_OVER_TEMP, true);
+        a.set_fault(FAULT_OVER_TEMP, true);
+        assert_ne!(a.get_domain_state().fault_flags & FAULT_OVER_TEMP, 0);
+        a.set_fault(FAULT_OVER_TEMP, false);
+        assert_eq!(a.get_domain_state().fault_flags & FAULT_OVER_TEMP, 0);
+    }
+
+    #[test]
+    fn compliance_stop_caps_the_operator_throttle() {
+        let mut a = teleop();
+        a.begin_stop_approach();
+        let eval = a.update_compliance(&stop_obs(0, 0));
+        assert_eq!(eval.decision, Decision::Stop);
+        // The brake slew-rates up, so run enough ticks to reach the full value.
+        let mut out = Actuation::default();
+        for seq in 1..=12 {
+            out = a
+                .apply_command(&cmd(seq, Mode::FullTeleop, 0.0, 1.0))
+                .unwrap();
+        }
+        assert_eq!(out.throttle_permille, 0);
+        assert_eq!(out.brake_permille, LAW_STOP_BRAKE_PERMILLE);
+    }
+
+    #[test]
+    fn stop_sign_is_ignored_until_the_approach_begins() {
+        let mut a = teleop();
+        let eval = a.update_compliance(&stop_obs(0, 0));
+        assert_eq!(eval.decision, Decision::Proceed);
+    }
+
+    #[test]
+    fn video_is_redacted_before_it_is_queued() {
+        let (w, h) = (16u32, 16u32);
+        // A varying pattern, since a blur leaves a flat region unchanged.
+        let original: Vec<u8> = (0..w * h).map(|i| ((i * 7) % 251) as u8).collect();
+        let detections = [Rect {
+            x: 4,
+            y: 4,
+            w: 6,
+            h: 6,
+        }];
+        let mut a = TeleopAdapter::new();
+        a.push_video(original.clone(), w, h, 7, &detections)
+            .unwrap();
+        let feed = a.get_sensor_feed();
+        assert_eq!(feed.video_frames.len(), 1);
+        let frame = &feed.video_frames[0];
+        assert_eq!(
+            (frame.width, frame.height, frame.kind),
+            (w, h, VideoKind::Rgb)
+        );
+        assert_eq!(frame.timestamp_us, 7);
+        // Outside the detection the pixels are untouched; inside they are blurred.
+        let inside = |x: u32, y: u32| {
+            detections.iter().any(|r| {
+                (r.x as u32..(r.x + r.w) as u32).contains(&x)
+                    && (r.y as u32..(r.y + r.h) as u32).contains(&y)
+            })
+        };
+        for (i, (raw, out)) in original.iter().zip(&frame.data).enumerate() {
+            let (x, y) = (i as u32 % w, i as u32 / w);
+            if !inside(x, y) {
+                assert_eq!(raw, out, "pixel ({x}, {y}) outside the detection changed");
+            }
+        }
+        assert_ne!(frame.data, original);
+    }
+
+    #[test]
+    fn sensor_feed_drains_queued_media_once() {
+        let mut a = TeleopAdapter::new();
+        a.push_video(vec![0u8; 4], 2, 2, 1, &[]).unwrap();
+        a.push_point_cloud(PointCloud {
+            timestamp_us: 1,
+            points: vec![[1.0, 2.0, 3.0]],
+        });
+        let first = a.get_sensor_feed();
+        assert_eq!(first.video_frames.len(), 1);
+        assert_eq!(first.point_clouds.len(), 1);
+        let second = a.get_sensor_feed();
+        assert!(second.video_frames.is_empty());
+        assert!(second.point_clouds.is_empty());
+    }
+
+    #[test]
+    fn video_with_the_wrong_size_is_refused() {
+        let mut a = TeleopAdapter::new();
+        assert_eq!(
+            a.push_video(vec![0u8; 3], 2, 2, 1, &[]),
+            Err(FrameError::SizeMismatch)
+        );
+        assert!(a.get_sensor_feed().video_frames.is_empty());
     }
 }

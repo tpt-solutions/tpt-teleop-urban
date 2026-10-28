@@ -395,6 +395,7 @@ dependencies = [
  "tpt-t-urban-car",
  "tpt-t-urban-compliance",
  "tpt-t-urban-delivery",
+ "tpt-t-urban-perception",
  "tpt-t-urban-predict",
  "tpt-t-urban-privacy",
  "tpt-t-urban-safety",
@@ -409,6 +410,7 @@ dependencies = [
  "tpt-t-domain-bridge",
  "tpt-t-urban-compliance",
  "tpt-t-urban-edge",
+ "tpt-t-urban-perception",
  "tpt-t-urban-privacy",
  "tpt-t-urban-safety",
 ]
