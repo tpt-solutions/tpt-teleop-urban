@@ -34,11 +34,25 @@ pub enum Decision {
     Hold,
 }
 
+/// What the bot tells the pedestrians this cycle.
+///
+/// The signal is polite: the bot chimes once when it starts to yield, and then
+/// only shows the light while it yields. It never chimes again until it has
+/// proceeded and yields again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Signal {
+    /// Visual indicator on: the bot is yielding or holding.
+    pub visual: bool,
+    /// Audible chime: the bot started to yield this cycle.
+    pub audible: bool,
+}
+
 /// Yield controller with hold-off.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Yielder {
     yielding: bool,
     clear_ms: u32,
+    onset: bool,
 }
 
 impl Yielder {
@@ -48,6 +62,16 @@ impl Yielder {
         Self {
             yielding: false,
             clear_ms: 0,
+            onset: false,
+        }
+    }
+
+    /// The signal for the last cycle `step` ran.
+    #[must_use]
+    pub const fn signal(&self) -> Signal {
+        Signal {
+            visual: self.yielding,
+            audible: self.onset,
         }
     }
 
@@ -59,10 +83,12 @@ impl Yielder {
 
     /// Advances by `dt_ms` with the current pedestrians, and returns the decision.
     pub fn step(&mut self, pedestrians: &[Pedestrian], dt_ms: u32) -> Decision {
+        self.onset = false;
         let conflict = pedestrians.iter().any(|p| {
             p.time_to_path_ms <= CONFLICT_HORIZON_MS && p.lateral_mm <= CONFLICT_LATERAL_MM
         });
         if conflict {
+            self.onset = !self.yielding;
             self.yielding = true;
             self.clear_ms = 0;
             return Decision::Yield;
@@ -133,5 +159,43 @@ mod tests {
         };
         let mut y = Yielder::new();
         assert_eq!(y.step(&[far], 100), Decision::Proceed);
+    }
+
+    #[test]
+    fn chimes_once_at_onset_and_shows_the_light_while_yielding() {
+        let mut y = Yielder::new();
+        y.step(&[WALKER], 100);
+        assert_eq!(
+            y.signal(),
+            Signal {
+                visual: true,
+                audible: true
+            }
+        );
+        y.step(&[WALKER], 100);
+        assert_eq!(
+            y.signal(),
+            Signal {
+                visual: true,
+                audible: false
+            }
+        );
+    }
+
+    #[test]
+    fn the_light_goes_off_when_it_proceeds_and_a_new_conflict_chimes_again() {
+        let mut y = Yielder::new();
+        y.step(&[WALKER], 100);
+        y.step(&[], 1_000);
+        y.step(&[], 1_000);
+        assert_eq!(
+            y.signal(),
+            Signal {
+                visual: false,
+                audible: false
+            }
+        );
+        y.step(&[WALKER], 100);
+        assert!(y.signal().audible);
     }
 }

@@ -2,14 +2,15 @@
 //!
 //! - [`mount`]: curb approach, alignment, and ultrasonic verification.
 //! - [`yield_ped`]: pedestrian right-of-way with hold-off.
+//! - [`reaction`]: turns a pedestrian's predicted cone into a yield and a smooth,
+//!   bounded deceleration, ahead of the guardian's AEB backstop.
 //! - [`compartment`]: package lock, gated by curb verification, rest, and a
 //!   constant-time code check.
 //!
-//! The jaywalker-reaction hookup (consuming `tpt-t-urban-predict` cones) needs
-//! the integration in Phase 16, and is not done here.
 
 pub mod compartment;
 pub mod mount;
+pub mod reaction;
 pub mod sidewalk;
 pub mod yield_ped;
 

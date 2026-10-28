@@ -2370,6 +2370,7 @@ version = "0.1.0"
 dependencies = [
  "ring",
  "tpt-t-urban-car",
+ "tpt-t-urban-predict",
 ]
 
 [[package]]
