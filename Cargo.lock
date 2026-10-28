@@ -2400,6 +2400,7 @@ dependencies = [
  "ring",
  "tpt-t-urban-car",
  "tpt-t-urban-compliance",
+ "tpt-t-urban-core",
  "tpt-t-urban-delivery",
  "tpt-t-urban-perception",
  "tpt-t-urban-predict",

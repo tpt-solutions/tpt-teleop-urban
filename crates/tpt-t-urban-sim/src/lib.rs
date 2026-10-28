@@ -23,6 +23,7 @@ pub mod gnss;
 pub mod journal;
 pub mod lidar;
 pub mod mrm;
+pub mod pipeline;
 pub mod plant;
 pub mod render;
 pub mod scenario;

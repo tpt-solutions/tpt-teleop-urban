@@ -13,6 +13,7 @@ publish = false
 
 [dependencies]
 tpt-t-urban-car = { workspace = true }
+tpt-t-urban-core = { workspace = true }
 tpt-t-urban-compliance = { workspace = true }
 tpt-t-urban-perception = { workspace = true }
 tpt-t-urban-predict = { workspace = true }
