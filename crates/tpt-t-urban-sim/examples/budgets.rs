@@ -115,6 +115,23 @@ fn main() {
         2_000_000.0,
     );
 
+    // 128 agents, the spec's 100+ agent case, in the same batch.
+    let mut big = ImmBatch::new();
+    for i in 0..128 {
+        big.push([i as f32, 0.0, 5.0, 0.0], 0.5, 1.0);
+    }
+    let zx: Vec<f32> = (0..128).map(|i| i as f32 + 0.5).collect();
+    let zy = vec![0.0_f32; 128];
+    let big_ns = mean_ns(2_000, || {
+        big.step(black_box(&zx), black_box(&zy), 0.033);
+    });
+    report(
+        "predict: batched IMM frame, 128 agents",
+        big_ns,
+        "< 2 ms",
+        2_000_000.0,
+    );
+
     // Safety: one guardian cycle with an obstacle present.
     let mut guardian = Guardian::new();
     let inputs = Inputs {
