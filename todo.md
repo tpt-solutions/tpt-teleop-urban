@@ -116,10 +116,15 @@ hardware bring-up → hardening/release.
 ## Phase 4 — `tpt-t-urban-perception`
 > Status: GNSS kinematic jump detection, LiDAR fallback with hysteresis, and
 > curb edge detection from a height profile, and inverse-variance fusion of two
-> position estimates are done. Open: fusion of real sensor streams, and 3D
-> detection and tracking, which need sensor data and a detector.
+> position estimates are done. A 2D detector groups LiDAR points into objects
+> (`perception::detect`), and an alpha-beta tracker keeps their identities and
+> velocities across frames (`perception::track`). An integration test runs the
+> sim's LiDAR into both: a moving box is tracked at about 2 m/s, and a static box
+> at rest. Open: 3D detection, classification, fusion of real sensor streams, and
+> any sensor beyond the simulated LiDAR.
 - [ ] Multi-sensor fusion pipeline: LiDAR, Radar, Camera, Ultrasonic
-- [ ] 3D object detection, tracking, and classification
+- [~] 3D object detection, tracking, and classification (2D detection and
+      tracking from LiDAR points are done, with no classification and no 3D)
 - [ ] GNSS multipath/anomaly detection (e.g. 5-meter position jump in urban
       canyons)
 - [ ] Seamless fallback to LiDAR-based localization on GNSS anomaly,
