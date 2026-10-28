@@ -6,11 +6,12 @@
 //! - [`routing`]: fastest route over a road graph, replanned on closures.
 //! - [`pull_over`]: shoulder pull-over path and its lateral-acceleration bound,
 //!   for a minimal risk maneuver.
-//!
-//! Not implemented yet: emergency-vehicle preemption, which needs SRM input.
+//! - [`preemption`]: the response to an emergency-vehicle alert, pulling over or
+//!   stopping. The alert can come from any source; SRM decoding is not done.
 
 pub mod control;
 pub mod glosa;
+pub mod preemption;
 pub mod profile;
 pub mod pull_over;
 pub mod routing;
