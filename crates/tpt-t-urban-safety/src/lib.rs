@@ -21,12 +21,22 @@
 //! Implements Phase 7 of `todo.md`. The <50 ms reaction budget and FMEA
 //! (Phase 17) need hardware measurements and are not covered here.
 
-/// Time-to-collision below which AEB is considered.
+/// Base time-to-collision below which AEB is considered. The effective threshold
+/// adds the time a full AEB stop takes, see `aeb_required`.
 pub const AEB_TTC_MS: u32 = 1_500;
 /// Planner heartbeat age that counts as stale.
 pub const PLANNER_STALE_MS: u32 = 50;
 /// Full service-brake deceleration: 7 m/s² in mm/s².
 pub const AEB_DECEL_MM_S2: u32 = 7_000;
+/// Distance the planner must stop short of an obstacle, mm. A stop that ends
+/// inside this distance still leaves the vehicle in contact range, so the
+/// guardian treats it as insufficient. Matches the 1 m contact zone in
+/// `tpt-t-urban-sim`.
+pub const STOP_MARGIN_MM: u32 = 1_000;
+/// Reaction time the stop must allow for before braking takes hold, ms. The
+/// vehicle covers `speed × REACTION_MS` before the brake acts. This is the
+/// spec's AEB reaction budget (§5.3).
+pub const REACTION_MS: u32 = 50;
 /// Minimal-risk-maneuver deceleration: 3 m/s² in mm/s².
 pub const MRM_DECEL_MM_S2: u32 = 3_000;
 
@@ -151,12 +161,24 @@ fn aeb_required(inputs: &Inputs) -> bool {
     }
     let closing_mm_s = obstacle.closing_speed_mm_s as u64;
     let range_mm = u64::from(obstacle.range_mm);
+    // The threshold grows with the time a full AEB stop takes, v / a. At speed the
+    // stop itself takes a while, so a fixed threshold would start braking too late
+    // for the stop to succeed.
+    let stop_time_ms = closing_mm_s * 1_000 / u64::from(AEB_DECEL_MM_S2);
     let ttc_ms = range_mm * 1_000 / closing_mm_s;
-    if ttc_ms >= u64::from(AEB_TTC_MS) {
+    if ttc_ms >= u64::from(AEB_TTC_MS) + stop_time_ms {
         return false;
     }
-    // Deceleration that stops the closing speed within the gap: v² / (2 d).
-    let required_decel = closing_mm_s * closing_mm_s / (2 * range_mm);
+    // Deceleration that stops the closing speed within the gap, less the margin
+    // and the distance covered during the reaction time:
+    // v² / (2 (d - margin - v × reaction)). Inside that, any closing speed needs
+    // the full brake.
+    let reaction_mm = closing_mm_s * u64::from(REACTION_MS) / 1_000;
+    let usable_mm = range_mm.saturating_sub(u64::from(STOP_MARGIN_MM) + reaction_mm);
+    if usable_mm == 0 {
+        return true;
+    }
+    let required_decel = closing_mm_s * closing_mm_s / (2 * usable_mm);
     u64::from(inputs.planned_decel_mm_s2) < required_decel
 }
 
@@ -204,8 +226,19 @@ mod tests {
 
     #[test]
     fn distant_closing_obstacle_does_not_trigger_aeb() {
+        // 20 m at 10 m/s needs 10² / (2 × 18.5) ≈ 2.7 m/s² with the margin and
+        // reaction. A planner braking at 3 m/s² is enough.
         let mut g = Guardian::new();
-        assert_eq!(g.step(&inputs(Some(far()), 0, 10)).mode, Mode::Nominal);
+        assert_eq!(g.step(&inputs(Some(far()), 3_000, 10)).mode, Mode::Nominal);
+    }
+
+    #[test]
+    fn distant_obstacle_with_no_planner_braking_engages_aeb_in_time() {
+        // The same obstacle, with the planner not braking at all. The threshold
+        // includes the 1 s a full stop takes at 10 m/s, so AEB engages while there
+        // is still room to stop.
+        let mut g = Guardian::new();
+        assert_eq!(g.step(&inputs(Some(far()), 0, 10)).mode, Mode::Aeb);
     }
 
     #[test]
@@ -224,9 +257,20 @@ mod tests {
 
     #[test]
     fn planner_braking_that_is_enough_suppresses_aeb() {
+        // 8 m range, less the 1 m margin and 0.5 m covered in the 50 ms reaction,
+        // leaves 6.5 m: 10² / (2 × 6.5) ≈ 7.69 m/s² needed.
+        let mut g = Guardian::new();
+        let cmd = g.step(&inputs(Some(near()), 8_000, 10));
+        assert_eq!(cmd.mode, Mode::Nominal);
+    }
+
+    #[test]
+    fn planner_braking_that_stops_inside_the_margin_does_not_suppress_aeb() {
+        // Without the margin and reaction the bare stop needs 6.25 m/s², which 7 m/s²
+        // would meet. With them it needs 7.69 m/s², so the planner is not enough.
         let mut g = Guardian::new();
         let cmd = g.step(&inputs(Some(near()), 7_000, 10));
-        assert_eq!(cmd.mode, Mode::Nominal);
+        assert_eq!(cmd.mode, Mode::Aeb);
     }
 
     #[test]
