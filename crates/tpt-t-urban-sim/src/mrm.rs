@@ -9,6 +9,7 @@
 //! trigger, so the lateral-acceleration limit holds with margin while the
 //! vehicle slows.
 
+use tpt_t_urban_car::pull_over::{Maneuver, choose};
 use tpt_t_urban_car::{Point, Pose, pull_over, pure_pursuit};
 use tpt_t_urban_safety::{Guardian, Inputs, MRM_DECEL_MM_S2, Mode};
 
@@ -93,6 +94,41 @@ pub fn run(speed_mps: f32, offset_m: f32, lateral_accel: f32, dt_s: f32) -> Pull
     }
 }
 
+/// What the vehicle did for its MRM.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Response {
+    /// The shoulder fitted in the road ahead, and the vehicle pulled over.
+    PulledOver(PullOver),
+    /// No shoulder fitted. The vehicle braked in place at the MRM rate.
+    BrakedInPlace {
+        /// Distance covered while braking to a stop, m.
+        distance_m: f32,
+    },
+}
+
+/// Chooses and runs the MRM for a vehicle at `speed_mps`, with a shoulder
+/// `offset_m` away and `available_m` of road ahead.
+#[must_use]
+pub fn respond(
+    speed_mps: f32,
+    offset_m: f32,
+    available_m: f32,
+    lateral_accel: f32,
+    dt_s: f32,
+) -> Response {
+    match choose(speed_mps, offset_m, available_m, lateral_accel) {
+        Maneuver::PullOver { .. } => {
+            Response::PulledOver(run(speed_mps, offset_m, lateral_accel, dt_s))
+        }
+        Maneuver::BrakeInPlace => {
+            let mrm_decel = MRM_DECEL_MM_S2 as f32 / 1_000.0;
+            Response::BrakedInPlace {
+                distance_m: speed_mps * speed_mps / (2.0 * mrm_decel),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,6 +145,25 @@ mod tests {
         let outcome = run(12.0, 3.5, 2.0, 0.01);
         assert!(outcome.stopped_on_shoulder, "{outcome:?}");
         assert!(outcome.max_lateral_accel <= 2.5, "{outcome:?}");
+    }
+
+    #[test]
+    fn the_response_pulls_over_when_a_shoulder_fits() {
+        match respond(12.0, 3.5, 200.0, 2.0, 0.01) {
+            Response::PulledOver(outcome) => assert!(outcome.stopped_on_shoulder, "{outcome:?}"),
+            other => panic!("expected a pull-over, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_response_brakes_in_place_when_no_shoulder_fits() {
+        // 12 m/s at 3 m/s² stops in 24 m, and the 5 m of road cannot hold the shoulder.
+        match respond(12.0, 3.5, 5.0, 2.0, 0.01) {
+            Response::BrakedInPlace { distance_m } => {
+                assert!((distance_m - 24.0).abs() < 0.1, "{distance_m}");
+            }
+            other => panic!("expected braking in place, got {other:?}"),
+        }
     }
 
     #[test]
