@@ -4,8 +4,8 @@
 //! reordering any entry breaks the chain at that point. Each entry is also signed,
 //! so a forged entry needs the signing key, not just the hash function.
 //!
-//! The ledger lives in memory here. Durable, power-loss-safe storage
-//! (spec §5.4) is a later step and is not implemented in this module.
+//! This type keeps the chain in memory. [`crate::store::DurableLedger`] wraps it
+//! with power-loss-safe file storage (spec §5.4).
 
 use ring::digest::{SHA256, digest};
 use ring::signature::{ED25519, Ed25519KeyPair, KeyPair, UnparsedPublicKey};
@@ -61,25 +61,55 @@ impl Ledger {
 
     /// Appends `body` as the next entry and returns it.
     pub fn append(&mut self, body: &[u8]) -> &Entry {
+        let entry = self.next_entry(body);
+        self.push(entry);
+        self.entries.last().expect("entry was just pushed")
+    }
+
+    /// Signs `body` as the entry after the current tail, without storing it.
+    pub(crate) fn next_entry(&self, body: &[u8]) -> Entry {
         let seq = self.entries.len() as u64;
         let prev_hash = self.entries.last().map_or(GENESIS_HASH, |e| e.hash);
         let message = signing_input(seq, &prev_hash, body);
         let mut signature = [0u8; 64];
         signature.copy_from_slice(self.signer.sign(&message).as_ref());
         let hash = entry_hash(&message, &signature);
-        self.entries.push(Entry {
+        Entry {
             seq,
             prev_hash,
             body: body.to_vec(),
             signature,
             hash,
-        });
-        self.entries.last().expect("entry was just pushed")
+        }
+    }
+
+    /// Stores an entry produced by [`Ledger::next_entry`]. Callers must push in
+    /// order, which durable storage does after the entry is on disk.
+    pub(crate) fn push(&mut self, entry: Entry) {
+        self.entries.push(entry);
+    }
+
+    /// Rebuilds a ledger from entries that were already verified.
+    pub(crate) fn restore(signer: Ed25519KeyPair, entries: Vec<Entry>) -> Self {
+        Self { signer, entries }
     }
 
     #[must_use]
     pub fn entries(&self) -> &[Entry] {
         &self.entries
+    }
+}
+
+impl VerifyError {
+    /// The sequence number of the entry that failed.
+    #[must_use]
+    pub const fn seq(self) -> u64 {
+        match self {
+            Self::SequenceGap { seq }
+            | Self::BrokenLink { seq }
+            | Self::BadSignature { seq }
+            | Self::BadHash { seq } => seq,
+        }
     }
 }
 

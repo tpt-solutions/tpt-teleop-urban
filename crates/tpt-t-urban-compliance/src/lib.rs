@@ -2,12 +2,15 @@
 //!
 //! - [`decision`]: stop-sign and speed-limit FSM. Each decision has a reason.
 //! - [`ledger`]: append-only ledger. Entries are hash-chained and Ed25519-signed.
+//! - [`store`]: file-backed ledger. Each append is synced before it returns, and
+//!   a torn tail from a power cut is cut off on open.
 //!
-//! Implements Phase 6 of `todo.md`. Durable storage and the full rule set are
-//! not implemented yet.
+//! Implements Phase 6 of `todo.md`. The full rule set is not implemented yet.
 
 pub mod decision;
 pub mod ledger;
+pub mod store;
 
 pub use decision::{ApproachState, Decision, Evaluation, Observation, evaluate};
 pub use ledger::{Entry, Ledger, VerifyError, verify_chain};
+pub use store::{DurableLedger, Recovery, StoreError};
