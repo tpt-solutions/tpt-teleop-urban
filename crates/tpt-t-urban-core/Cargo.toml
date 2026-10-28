@@ -2,6 +2,9 @@
 name = "tpt-t-urban-core"
 version = "0.1.0"
 description = "Central deterministic event loop, vehicle state machine, and lock-free message bus."
+readme = "README.md"
+keywords = ["event-loop", "state-machine", "message-bus", "deterministic", "rkyv"]
+categories = ["concurrency", "science::robotics"]
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

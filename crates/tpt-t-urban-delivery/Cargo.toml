@@ -2,6 +2,9 @@
 name = "tpt-t-urban-delivery"
 version = "0.1.0"
 description = "Last-mile sidewalk bot control: curb mounting, pedestrian yielding, and secure compartments."
+readme = "README.md"
+keywords = ["sidewalk-robot", "last-mile", "delivery", "pedestrian", "robotics"]
+categories = ["science::robotics"]
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

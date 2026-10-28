@@ -2,6 +2,9 @@
 name = "tpt-t-urban-sim"
 version = "0.1.0"
 description = "Headless urban simulator, scenario injection, and egui visualizer."
+readme = "README.md"
+keywords = ["simulator", "autonomous-driving", "scenario", "digital-twin", "egui"]
+categories = ["simulation", "science::robotics"]
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

@@ -2,6 +2,9 @@
 name = "tpt-t-urban-v2x"
 version = "0.1.0"
 description = "Zero-copy C-V2X / DSRC parsing for BSM, MAP, SPAT, and SRM messages."
+readme = "README.md"
+keywords = ["v2x", "dsrc", "c-v2x", "uper", "asn1"]
+categories = ["network-programming", "parser-implementations"]
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

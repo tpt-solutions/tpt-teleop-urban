@@ -2,6 +2,9 @@
 name = "tpt-t-urban-compliance"
 version = "0.1.0"
 description = "Deterministic traffic-law FSM with signed justifications and a hash-chained audit ledger."
+readme = "README.md"
+keywords = ["traffic-law", "audit-ledger", "hash-chain", "ed25519", "state-machine"]
+categories = ["cryptography", "science::robotics"]
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

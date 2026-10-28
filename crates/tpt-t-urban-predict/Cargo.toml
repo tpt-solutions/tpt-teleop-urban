@@ -2,6 +2,9 @@
 name = "tpt-t-urban-predict"
 version = "0.1.0"
 description = "SIMD-accelerated IMM Kalman prediction of pedestrian, cyclist, and vehicle trajectories."
+readme = "README.md"
+keywords = ["kalman-filter", "imm", "prediction", "simd", "pedestrian"]
+categories = ["science::robotics", "algorithms"]
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

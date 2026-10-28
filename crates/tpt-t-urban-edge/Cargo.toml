@@ -2,6 +2,9 @@
 name = "tpt-t-urban-edge"
 version = "0.1.0"
 description = "Bare-metal/RTOS actuation layer: steer-by-wire, brake-by-wire, throttle, and watchdog."
+readme = "README.md"
+keywords = ["no-std", "embedded", "rtos", "actuation", "watchdog"]
+categories = ["no-std", "embedded", "science::robotics"]
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

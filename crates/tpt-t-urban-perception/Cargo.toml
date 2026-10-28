@@ -2,6 +2,9 @@
 name = "tpt-t-urban-perception"
 version = "0.1.0"
 description = "Multi-sensor fusion, 3D object detection, tracking, and GNSS anomaly handling."
+readme = "README.md"
+keywords = ["sensor-fusion", "gnss", "curb-detection", "tracking", "lidar"]
+categories = ["science::robotics", "computer-vision"]
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

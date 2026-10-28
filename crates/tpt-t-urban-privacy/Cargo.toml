@@ -2,6 +2,9 @@
 name = "tpt-t-urban-privacy"
 version = "0.1.0"
 description = "On-the-fly face and license-plate blurring in the zero-copy frame buffer."
+readme = "README.md"
+keywords = ["privacy", "face-blur", "license-plate", "redaction", "image-processing"]
+categories = ["multimedia::images", "science::robotics"]
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

@@ -2,6 +2,9 @@
 name = "tpt-t-urban-car"
 version = "0.1.0"
 description = "Trajectory planning, speed profiling, and kinematic control for 4-wheel vehicles."
+readme = "README.md"
+keywords = ["autonomous-vehicles", "trajectory-planning", "pure-pursuit", "vehicle-control", "routing"]
+categories = ["science::robotics", "simulation"]
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

@@ -2,6 +2,9 @@
 name = "tpt-t-urban-teleop"
 version = "0.1.0"
 description = "Adapter implementing tpt-teleop's DomainTeleopInterface for urban vehicles."
+readme = "README.md"
+keywords = ["teleoperation", "remote-driving", "vehicle-control", "tpt-teleop", "adapter"]
+categories = ["science::robotics", "network-programming"]
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
