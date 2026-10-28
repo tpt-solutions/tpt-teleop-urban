@@ -7,6 +7,7 @@
 //!   the crossings that were avoidable.
 //! - [`drive`]: closed-loop route driving, with the guardian watching the
 //!   planner heartbeat and handing over to the pull-over MRM on a stall.
+//! - [`lidar`]: 2D LiDAR by ray casting against boxes, with range noise.
 //! - [`gnss`]: GNSS model with noise, multipath jumps, and denial, for driving
 //!   the localization source selector.
 //!
@@ -16,6 +17,7 @@
 pub mod drive;
 pub mod gnss;
 pub mod journal;
+pub mod lidar;
 pub mod mrm;
 pub mod plant;
 pub mod render;
