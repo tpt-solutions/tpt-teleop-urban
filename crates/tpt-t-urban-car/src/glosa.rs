@@ -16,9 +16,15 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Signal {
     /// Green now; `time_to_red_s` until it turns red.
-    Green { time_to_red_s: f32 },
+    Green {
+        /// Seconds until the light turns red.
+        time_to_red_s: f32,
+    },
     /// Red now; `time_to_green_s` until it turns green.
-    Red { time_to_green_s: f32 },
+    Red {
+        /// Seconds until the light turns green.
+        time_to_green_s: f32,
+    },
 }
 
 /// Speed bounds and distance for one advisory.

@@ -16,6 +16,7 @@
 /// One periodic stage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Stage {
+    /// Stage name, for reports.
     pub name: &'static str,
     /// Core the stage is pinned to.
     pub core: u8,
@@ -29,15 +30,26 @@ pub struct Stage {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Violation {
     /// A core's utilization exceeds 1.0. Utilization is in parts per million.
-    Overloaded { core: u8, utilization_ppm: u64 },
+    Overloaded {
+        /// The overloaded core.
+        core: u8,
+        /// Its utilization, in parts per million.
+        utilization_ppm: u64,
+    },
     /// A chain's worst-case latency exceeds its deadline.
     ChainTooSlow {
+        /// Name of the chain that missed its deadline.
         chain: &'static str,
+        /// Worst-case end-to-end latency of the chain, in microseconds.
         latency_us: u64,
+        /// Deadline of the chain, in microseconds.
         deadline_us: u64,
     },
     /// A stage has a zero period, so its utilization is undefined.
-    ZeroPeriod { stage: &'static str },
+    ZeroPeriod {
+        /// The stage whose period is zero.
+        stage: &'static str,
+    },
 }
 
 /// Utilization of `core` in parts per million, from the stages pinned to it.

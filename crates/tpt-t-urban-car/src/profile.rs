@@ -12,7 +12,9 @@
 /// Path point in a local planar frame, metres.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Point {
+    /// x coordinate, in metres.
     pub x: f32,
+    /// y coordinate, in metres.
     pub y: f32,
 }
 

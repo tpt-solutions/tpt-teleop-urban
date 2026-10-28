@@ -16,9 +16,13 @@ pub enum FrameError {
 /// Axis-aligned rectangle in pixel coordinates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rect {
+    /// Left column, in pixels.
     pub x: usize,
+    /// Top row, in pixels.
     pub y: usize,
+    /// Width, in pixels.
     pub w: usize,
+    /// Height, in pixels.
     pub h: usize,
 }
 
@@ -75,16 +79,19 @@ impl<'a> Frame<'a> {
     }
 
     #[must_use]
+    /// Width, in pixels.
     pub const fn width(&self) -> usize {
         self.width
     }
 
     #[must_use]
+    /// Height, in pixels.
     pub const fn height(&self) -> usize {
         self.height
     }
 
     #[must_use]
+    /// The pixels, row-major.
     pub fn pixels(&self) -> &[u8] {
         self.pixels
     }

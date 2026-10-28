@@ -16,10 +16,15 @@ pub const GENESIS_HASH: [u8; 32] = [0; 32];
 /// One signed, chained record.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Entry {
+    /// Position in the chain, from zero.
     pub seq: u64,
+    /// Hash of the entry before this one, or `GENESIS_HASH` for the first.
     pub prev_hash: [u8; 32],
+    /// The recorded payload.
     pub body: Vec<u8>,
+    /// Ed25519 signature over the sequence number, previous hash and body.
     pub signature: [u8; 64],
+    /// SHA-256 of the signed message and its signature.
     pub hash: [u8; 32],
 }
 
@@ -27,13 +32,25 @@ pub struct Entry {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VerifyError {
     /// Entry `seq` does not carry the sequence number of its position.
-    SequenceGap { seq: u64 },
+    SequenceGap {
+        /// The entry whose sequence number is wrong.
+        seq: u64,
+    },
     /// Entry `seq` does not link to the hash of the entry before it.
-    BrokenLink { seq: u64 },
+    BrokenLink {
+        /// The entry that does not link.
+        seq: u64,
+    },
     /// Entry `seq` has a signature that does not verify.
-    BadSignature { seq: u64 },
+    BadSignature {
+        /// The entry whose signature fails.
+        seq: u64,
+    },
     /// Entry `seq` has a stored hash that does not match its contents.
-    BadHash { seq: u64 },
+    BadHash {
+        /// The entry whose hash does not match.
+        seq: u64,
+    },
 }
 
 /// Append-only ledger that signs every entry with one Ed25519 key.
@@ -44,6 +61,7 @@ pub struct Ledger {
 
 impl Ledger {
     #[must_use]
+    /// A ledger that signs with `signer`, starting empty.
     pub fn new(signer: Ed25519KeyPair) -> Self {
         Self {
             signer,
@@ -95,6 +113,7 @@ impl Ledger {
     }
 
     #[must_use]
+    /// Every stored entry, in order.
     pub fn entries(&self) -> &[Entry] {
         &self.entries
     }

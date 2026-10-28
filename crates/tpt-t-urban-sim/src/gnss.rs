@@ -20,14 +20,22 @@ pub enum Condition {
     /// No fix is produced.
     Denied,
     /// The fix is offset by `(dx_mm, dy_mm)` from the true position.
-    Multipath { dx_mm: i64, dy_mm: i64 },
+    Multipath {
+        /// Offset along x, in millimetres.
+        dx_mm: i64,
+        /// Offset along y, in millimetres.
+        dy_mm: i64,
+    },
 }
 
 /// A stretch of time with one condition. `start_ms` is included, `end_ms` is not.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Window {
+    /// First millisecond the condition applies.
     pub start_ms: u64,
+    /// First millisecond after the window (exclusive).
     pub end_ms: u64,
+    /// The condition that applies inside the window.
     pub condition: Condition,
 }
 

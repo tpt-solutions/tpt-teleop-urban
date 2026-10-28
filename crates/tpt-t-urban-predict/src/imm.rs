@@ -50,8 +50,11 @@ pub struct Imm {
 /// Mixed estimate across models.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Estimate {
+    /// Mixed state, `[px, py, vx, vy]`.
     pub x: State,
+    /// Mixed covariance.
     pub p: Cov,
+    /// Model probabilities: cruise, then maneuver.
     pub mu: Mu,
 }
 
@@ -60,7 +63,9 @@ pub struct Estimate {
 pub struct ConePoint {
     /// Seconds ahead of the current estimate.
     pub t_s: f32,
+    /// Position x, in metres.
     pub x: f32,
+    /// Position y, in metres.
     pub y: f32,
     /// Radius that contains the position with `k_sigma` standard deviations
     /// along the worst axis.
@@ -86,6 +91,7 @@ impl Imm {
     }
 
     #[must_use]
+    /// Model probabilities: cruise, then maneuver.
     pub const fn mu(&self) -> Mu {
         self.mu
     }

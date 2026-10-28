@@ -11,8 +11,11 @@ use crate::profile::Point;
 /// from +x).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pose {
+    /// Position x, in metres.
     pub x: f32,
+    /// Position y, in metres.
     pub y: f32,
+    /// Heading, in radians, counter-clockwise from +x.
     pub yaw: f32,
 }
 

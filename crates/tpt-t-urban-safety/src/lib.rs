@@ -76,6 +76,7 @@ pub enum Mode {
 /// Override the guardian applies to the planner this cycle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Command {
+    /// The mode the guardian is in this cycle.
     pub mode: Mode,
     /// Deceleration to apply in mm/s². Zero in `Nominal`, where the planner's own
     /// command stands.
@@ -96,6 +97,7 @@ impl Default for Guardian {
 
 impl Guardian {
     #[must_use]
+    /// A guardian in `Nominal`.
     pub const fn new() -> Self {
         Self {
             mode: Mode::Nominal,
@@ -103,6 +105,7 @@ impl Guardian {
     }
 
     #[must_use]
+    /// Current mode.
     pub const fn mode(&self) -> Mode {
         self.mode
     }

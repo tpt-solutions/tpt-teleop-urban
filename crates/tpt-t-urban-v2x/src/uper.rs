@@ -18,6 +18,7 @@ pub enum UperError {
     Unsupported,
 }
 
+/// Result of a UPER decode step.
 pub type Result<T> = core::result::Result<T, UperError>;
 
 /// Reads bit fields from a byte slice, most significant bit first.
@@ -29,6 +30,7 @@ pub struct BitReader<'a> {
 
 impl<'a> BitReader<'a> {
     #[must_use]
+    /// A reader positioned at the first bit of `bytes`.
     pub const fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, pos: 0 }
     }
@@ -136,8 +138,16 @@ impl<'a> BitReader<'a> {
 /// Result of an enumerated decode: a root value or an extension addition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Enumerated {
-    Root(u64),
-    Extension(u64),
+    /// A root enumerator, by its index.
+    Root(
+        /// The index of the root enumerator.
+        u64,
+    ),
+    /// An extension addition, by its index.
+    Extension(
+        /// The index of the extension addition.
+        u64,
+    ),
 }
 
 /// Number of values in `lb..=ub`, or an error if the bounds are inverted or the

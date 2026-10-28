@@ -21,8 +21,11 @@ pub const ALL_RED_MS: u32 = 1_000;
 /// What a phase shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Interval {
+    /// The phase is green and may move.
     Green,
+    /// Clearance: the phase is ending.
     Yellow,
+    /// All phases stopped while the intersection clears.
     AllRed,
 }
 
@@ -31,6 +34,7 @@ pub enum Interval {
 pub struct Output {
     /// Phase index that owns the current interval.
     pub phase: usize,
+    /// What the current phase shows.
     pub interval: Interval,
     /// Whether the controller is serving a preemption request.
     pub preempted: bool,

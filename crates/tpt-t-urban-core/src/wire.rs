@@ -9,10 +9,15 @@ use rkyv::{Archive, Deserialize, Serialize};
 #[derive(Archive, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum VehicleState {
+    /// Parked, not driving.
     Parked,
+    /// Computing a route.
     Routing,
+    /// Following a route.
     Driving,
+    /// Halted, with the route still held.
     Stopped,
+    /// Emergency stop latched. Only `Clear` leaves it.
     Emergency,
 }
 
@@ -20,13 +25,21 @@ pub enum VehicleState {
 #[derive(Archive, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Event {
+    /// Start a trip from `Parked`.
     Depart,
+    /// The route is computed: `Routing` to `Driving`.
     RouteReady,
+    /// No route could be found: `Routing` to `Parked`.
     RouteFailed,
+    /// Stop on the road: `Driving` to `Stopped`.
     Halt,
+    /// Resume after a halt: `Stopped` to `Driving`.
     Go,
+    /// Park after a halt: `Stopped` to `Parked`.
     Park,
+    /// Emergency stop, accepted from every state except `Emergency`.
     EmergencyStop,
+    /// Leave the emergency: `Emergency` to `Stopped`.
     Clear,
 }
 
@@ -35,8 +48,11 @@ pub enum Event {
 pub struct Transition {
     /// Logical sequence number, assigned by the event loop in processing order.
     pub seq: u64,
+    /// State before the transition.
     pub from: VehicleState,
+    /// State after the transition.
     pub to: VehicleState,
+    /// The event that caused the transition.
     pub event: Event,
 }
 

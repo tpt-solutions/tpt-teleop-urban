@@ -15,16 +15,19 @@ pub struct RedactedFrame<'a> {
 
 impl RedactedFrame<'_> {
     #[must_use]
+    /// The blurred pixels, row-major.
     pub fn pixels(&self) -> &[u8] {
         self.frame.pixels()
     }
 
     #[must_use]
+    /// Width, in pixels.
     pub const fn width(&self) -> usize {
         self.frame.width()
     }
 
     #[must_use]
+    /// Height, in pixels.
     pub const fn height(&self) -> usize {
         self.frame.height()
     }
@@ -32,6 +35,7 @@ impl RedactedFrame<'_> {
 
 /// Destination for redacted frames: disk, the recorder, or the teleop link.
 pub trait Sink {
+    /// Receives one redacted frame. A raw frame cannot be passed here, since only `RedactedFrame` is accepted.
     fn accept(&mut self, frame: &RedactedFrame<'_>);
 }
 

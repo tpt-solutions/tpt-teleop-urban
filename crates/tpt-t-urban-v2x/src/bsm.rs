@@ -17,28 +17,49 @@
 use crate::uper::{BitReader, Result};
 
 // Unverified J2735 ranges (see module docs). Bit widths follow from them.
+/// Valid range of `msgCnt`, in raw units. Unverified against J2735.
 pub const MSG_CNT_RANGE: (i64, i64) = (0, 127);
+/// Valid range of `secMark`, in raw units. Unverified against J2735.
 pub const SEC_MARK_RANGE: (i64, i64) = (0, 65_535);
+/// Valid range of latitude, in tenths of a microdegree. Unverified against J2735.
 pub const LAT_RANGE: (i64, i64) = (-900_000_000, 900_000_001);
+/// Valid range of longitude, in tenths of a microdegree. Unverified against J2735.
 pub const LON_RANGE: (i64, i64) = (-1_799_999_999, 1_800_000_001);
+/// Valid range of elevation, in tenths of a metre. Unverified against J2735.
 pub const ELEV_RANGE: (i64, i64) = (-4_096, 61_439);
+/// Valid range of an error-ellipse semi-axis, in raw units. Unverified against J2735.
 pub const SEMI_AXIS_RANGE: (i64, i64) = (0, 255);
+/// Valid range of the error-ellipse orientation, in raw units. Unverified against J2735.
 pub const ORIENTATION_RANGE: (i64, i64) = (0, 65_535);
 /// Eight enumerators: neutral, park, forward, reverse, three reserved, unavailable.
 pub const TRANSMISSION_RANGE: (i64, i64) = (0, 7);
+/// Valid range of speed, in centimetres per second. Unverified against J2735.
 pub const SPEED_RANGE: (i64, i64) = (0, 8_191);
+/// Valid range of heading, in 0.0125 degree units. Unverified against J2735.
 pub const HEADING_RANGE: (i64, i64) = (0, 28_800);
+/// Valid range of steering-wheel angle, in raw units. Unverified against J2735.
 pub const STEER_ANGLE_RANGE: (i64, i64) = (-126, 127);
+/// Valid range of longitudinal acceleration, in raw units. Unverified against J2735.
 pub const ACCEL_LONG_RANGE: (i64, i64) = (-2_000, 2_001);
+/// Valid range of lateral acceleration, in raw units. Unverified against J2735.
 pub const ACCEL_LAT_RANGE: (i64, i64) = (-2_000, 2_001);
+/// Valid range of vertical acceleration, in raw units. Unverified against J2735.
 pub const ACCEL_VERT_RANGE: (i64, i64) = (-127, 127);
+/// Valid range of yaw rate, in raw units. Unverified against J2735.
 pub const YAW_RANGE: (i64, i64) = (-32_767, 32_767);
+/// Valid range of the traction control status index.
 pub const TRACTION_RANGE: (i64, i64) = (0, 3);
+/// Valid range of the anti-lock brake status index.
 pub const ABS_RANGE: (i64, i64) = (0, 3);
+/// Valid range of the stability control status index.
 pub const SCS_RANGE: (i64, i64) = (0, 3);
+/// Valid range of the brake boost status index.
 pub const BRAKE_BOOST_RANGE: (i64, i64) = (0, 2);
+/// Valid range of the auxiliary brake status index.
 pub const AUX_BRAKES_RANGE: (i64, i64) = (0, 3);
+/// Valid range of vehicle length, in centimetres. Unverified against J2735.
 pub const VEHICLE_LENGTH_RANGE: (i64, i64) = (0, 1_023);
+/// Valid range of vehicle width, in centimetres. Unverified against J2735.
 pub const VEHICLE_WIDTH_RANGE: (i64, i64) = (0, 1_023);
 
 /// Five-bit wheel-brake bit string (`BIT STRING (SIZE(5))`).
@@ -47,17 +68,24 @@ const WHEEL_BRAKES_BITS: u32 = 5;
 /// Position error ellipse.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PositionalAccuracy {
+    /// Semi-major axis of the position error ellipse, raw units.
     pub semi_major: u8,
+    /// Semi-minor axis of the position error ellipse, raw units.
     pub semi_minor: u8,
+    /// Orientation of the major axis, raw units.
     pub orientation: u16,
 }
 
 /// Longitudinal, lateral, vertical and yaw acceleration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AccelerationSet4Way {
+    /// Longitudinal acceleration, raw units.
     pub long: i16,
+    /// Lateral acceleration, raw units.
     pub lat: i16,
+    /// Vertical acceleration, raw units.
     pub vert: i8,
+    /// Yaw rate, raw units.
     pub yaw: i16,
 }
 
@@ -65,26 +93,37 @@ pub struct AccelerationSet4Way {
 /// decoder claims nothing beyond the bit layout.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BrakeSystemStatus {
+    /// Raw wheel-brake status, a five-bit set.
     pub wheel_brakes: u8,
+    /// Raw traction-control status index.
     pub traction: u8,
+    /// Raw anti-lock brake status index.
     pub abs: u8,
+    /// Raw stability control status index.
     pub scs: u8,
+    /// Raw brake boost status index.
     pub brake_boost: u8,
+    /// Raw auxiliary brake status index.
     pub aux_brakes: u8,
 }
 
 /// Vehicle footprint in centimetres.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VehicleSize {
+    /// Vehicle length, in centimetres.
     pub length: u16,
+    /// Vehicle width, in centimetres.
     pub width: u16,
 }
 
 /// BSM Part I core data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BsmCoreData {
+    /// Message count, wrapping at 127.
     pub msg_cnt: u8,
+    /// Temporary vehicle identifier, four octets.
     pub temporary_id: [u8; 4],
+    /// Millisecond within the minute.
     pub sec_mark: u16,
     /// Tenth of a microdegree.
     pub lat: i32,
@@ -92,15 +131,21 @@ pub struct BsmCoreData {
     pub lon: i32,
     /// Tenth of a metre.
     pub elev: i32,
+    /// Position error ellipse.
     pub accuracy: PositionalAccuracy,
+    /// Raw transmission state, within `TRANSMISSION_RANGE`.
     pub transmission: u8,
     /// Centimetres per second.
     pub speed: u16,
     /// 0.0125 degree units.
     pub heading: u16,
+    /// Steering-wheel angle, raw units.
     pub steer_angle: i8,
+    /// Accelerations in four axes.
     pub accel: AccelerationSet4Way,
+    /// Brake system status.
     pub brakes: BrakeSystemStatus,
+    /// Vehicle footprint.
     pub size: VehicleSize,
 }
 

@@ -9,9 +9,13 @@
 /// Agents in structure-of-arrays form. All four slices must be the same length.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AgentsSoa {
+    /// x positions, in metres, one per agent.
     pub px: Vec<f32>,
+    /// y positions, in metres, one per agent.
     pub py: Vec<f32>,
+    /// x velocities, in metres per second, one per agent.
     pub vx: Vec<f32>,
+    /// y velocities, in metres per second, one per agent.
     pub vy: Vec<f32>,
 }
 
@@ -23,6 +27,7 @@ impl AgentsSoa {
     }
 
     #[must_use]
+    /// True when there are no agents.
     pub fn is_empty(&self) -> bool {
         self.px.is_empty()
     }

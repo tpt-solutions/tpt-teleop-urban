@@ -52,6 +52,7 @@ pub struct Scenario {
     pub guardian_enabled: bool,
     /// Simulated seconds.
     pub duration_s: f32,
+    /// Simulation time step, in seconds.
     pub dt_s: f32,
 }
 
@@ -73,12 +74,14 @@ impl Default for Scenario {
 /// Result of one run.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Outcome {
+    /// Whether the vehicle hit the pedestrian.
     pub collided: bool,
     /// Whether the guardian entered AEB at any point.
     pub aeb_engaged: bool,
     /// Smallest front-bumper gap to the pedestrian while they were in the lane, m.
     /// Negative means the bumper passed the pedestrian's position.
     pub min_gap_m: f32,
+    /// Vehicle speed at the end of the run, in metres per second.
     pub final_speed_mps: f32,
 }
 
@@ -97,10 +100,15 @@ impl Noise {
 /// One simulated step, for plotting.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TracePoint {
+    /// Time since the start of the run, in seconds.
     pub t_s: f32,
+    /// Vehicle position along x, in metres.
     pub vehicle_x: f32,
+    /// Vehicle speed, in metres per second.
     pub speed_mps: f32,
+    /// Pedestrian position along x, in metres.
     pub ped_x: f32,
+    /// Pedestrian position along y, in metres.
     pub ped_y: f32,
     /// Whether the guardian was overriding the planner this step.
     pub override_active: bool,

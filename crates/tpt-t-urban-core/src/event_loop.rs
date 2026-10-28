@@ -17,8 +17,11 @@ pub enum Outcome {
     /// The event is not valid in the current state. The state is unchanged,
     /// but the event still consumed `seq`, so the log has no gaps.
     Rejected {
+        /// Sequence number the rejected event consumed.
         seq: u64,
+        /// State the event was rejected in.
         state: VehicleState,
+        /// The rejected event.
         event: Event,
     },
     /// Both lanes were empty.

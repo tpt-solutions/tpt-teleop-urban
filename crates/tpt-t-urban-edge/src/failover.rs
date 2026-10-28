@@ -14,7 +14,9 @@ pub const REQUALIFY_RUN: u32 = 20;
 /// Which channel is driving the steering.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Channel {
+    /// The primary channel.
     Primary,
+    /// The secondary channel.
     Secondary,
 }
 
@@ -40,6 +42,7 @@ impl Default for Failover {
 
 impl Failover {
     #[must_use]
+    /// A selector that starts on the primary channel.
     pub const fn new() -> Self {
         Self {
             active: Channel::Primary,
@@ -89,6 +92,7 @@ impl Failover {
     }
 
     #[must_use]
+    /// The channel currently driving the steering.
     pub const fn active(&self) -> Channel {
         self.active
     }

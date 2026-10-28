@@ -10,8 +10,11 @@
 /// A GNSS position fix in a local planar frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Fix {
+    /// x position in the local planar frame, in millimetres.
     pub x_mm: i64,
+    /// y position in the local planar frame, in millimetres.
     pub y_mm: i64,
+    /// Timestamp, in milliseconds.
     pub t_ms: u64,
 }
 
@@ -41,6 +44,7 @@ pub struct JumpDetector {
 
 impl JumpDetector {
     #[must_use]
+    /// A detector with no history.
     pub const fn new() -> Self {
         Self { last: None }
     }
@@ -75,7 +79,9 @@ impl JumpDetector {
 /// Which source the vehicle localizes with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Source {
+    /// Localize with GNSS.
     Gnss,
+    /// Localize with LiDAR.
     Lidar,
 }
 
@@ -95,6 +101,7 @@ impl Default for SourceSelector {
 
 impl SourceSelector {
     #[must_use]
+    /// A selector that starts on GNSS, with no history.
     pub const fn new() -> Self {
         Self {
             source: Source::Gnss,
@@ -104,6 +111,7 @@ impl SourceSelector {
     }
 
     #[must_use]
+    /// The source chosen for this cycle.
     pub const fn source(&self) -> Source {
         self.source
     }

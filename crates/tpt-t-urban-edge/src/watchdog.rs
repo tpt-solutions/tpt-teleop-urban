@@ -52,6 +52,7 @@ impl Watchdog {
     }
 
     #[must_use]
+    /// Current state. `Expired` stays latched until `feed` is called.
     pub const fn state(&self) -> State {
         if self.expired {
             State::Expired

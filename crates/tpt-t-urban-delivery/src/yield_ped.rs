@@ -43,6 +43,7 @@ pub struct Yielder {
 
 impl Yielder {
     #[must_use]
+    /// A yielder that is not yielding.
     pub const fn new() -> Self {
         Self {
             yielding: false,

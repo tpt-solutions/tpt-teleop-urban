@@ -59,7 +59,10 @@ pub enum CommandError {
     /// `seq` did not increase, so the command is a replay or out of order.
     Replay,
     /// The command was authored for a mode that is no longer current.
-    ModeMismatch { current: Mode },
+    ModeMismatch {
+        /// The mode the vehicle is in now.
+        current: Mode,
+    },
     /// The machine is in `Auto`, where operator input is not accepted.
     NotActive,
 }

@@ -41,15 +41,23 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 /// Compartment state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lock {
+    /// Closed and latched.
     Locked,
-    Open { seconds_left: u32 },
+    /// Open, and re-locks once the countdown ends.
+    Open {
+        /// Seconds left before the compartment re-locks.
+        seconds_left: u32,
+    },
 }
 
 /// Why an unlock request was refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
+    /// The bot has not verified its wheel against the curb.
     NotVerifiedAtCurb,
+    /// The bot is still moving.
     NotAtRest,
+    /// The code does not match the one the compartment was set for.
     WrongCode,
 }
 
@@ -71,6 +79,7 @@ impl Compartment {
     }
 
     #[must_use]
+    /// Current lock state.
     pub const fn lock(&self) -> Lock {
         self.lock
     }

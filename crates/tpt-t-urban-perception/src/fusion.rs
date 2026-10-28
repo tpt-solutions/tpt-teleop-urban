@@ -14,8 +14,11 @@
 /// Position estimate with its variance (m²) per axis.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Estimate {
+    /// Position x, in metres.
     pub x: f32,
+    /// Position y, in metres.
     pub y: f32,
+    /// Variance of the position, in square metres.
     pub variance: f32,
 }
 

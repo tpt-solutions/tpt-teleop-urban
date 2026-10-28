@@ -7,9 +7,13 @@
 /// Vehicle plant state in metres, radians and metres per second.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Bicycle {
+    /// Position along the x axis, in metres.
     pub x: f32,
+    /// Position along the y axis, in metres.
     pub y: f32,
+    /// Heading, in radians.
     pub yaw: f32,
+    /// Speed, in metres per second.
     pub speed: f32,
     /// Distance between axles, metres.
     pub wheelbase: f32,
@@ -17,6 +21,7 @@ pub struct Bicycle {
 
 impl Bicycle {
     #[must_use]
+    /// A vehicle at the given pose and speed.
     pub const fn new(x: f32, y: f32, yaw: f32, speed: f32, wheelbase: f32) -> Self {
         Self {
             x,

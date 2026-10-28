@@ -12,9 +12,13 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Decision {
+    /// The vehicle may move on.
     Proceed = 0,
+    /// Slow down, for an approaching stop line or a speed above the limit.
     Decelerate = 1,
+    /// Brake and yield to a vehicle with right-of-way.
     Yield = 2,
+    /// Stop at the line.
     Stop = 3,
 }
 
@@ -48,8 +52,11 @@ pub struct Observation {
 /// Result of one evaluation step.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Evaluation {
+    /// What the vehicle must do this step.
     pub decision: Decision,
+    /// Stop-sign state for the next step.
     pub next: ApproachState,
+    /// Fixed, human-readable reason, recorded in the ledger.
     pub reason: &'static str,
 }
 

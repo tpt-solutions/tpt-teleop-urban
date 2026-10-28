@@ -12,7 +12,9 @@ pub const CURB_STEP_MM: i32 = 80;
 /// ground height at that offset in millimetres.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Sample {
+    /// Lateral offset from the vehicle, in millimetres.
     pub lateral_mm: i32,
+    /// Ground height at that offset, in millimetres.
     pub height_mm: i32,
 }
 

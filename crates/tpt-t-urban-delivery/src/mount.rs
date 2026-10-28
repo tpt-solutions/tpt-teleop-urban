@@ -31,9 +31,13 @@ pub enum MountState {
 /// What the bot does this cycle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MountAction {
+    /// Drive forward toward the curb.
     Drive,
+    /// Creep forward at low speed while aligning.
     Creep,
+    /// Hold still.
     Stop,
+    /// Back out of the curb.
     Reverse,
 }
 
@@ -64,6 +68,7 @@ impl Default for Mount {
 
 impl Mount {
     #[must_use]
+    /// A mount controller in the approach phase.
     pub const fn new() -> Self {
         Self {
             state: MountState::Approach,
@@ -73,6 +78,7 @@ impl Mount {
     }
 
     #[must_use]
+    /// Current mount state.
     pub const fn state(&self) -> MountState {
         self.state
     }

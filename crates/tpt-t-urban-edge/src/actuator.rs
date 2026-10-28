@@ -42,8 +42,11 @@ pub const fn slew_u16(current: u16, target: u16, rate: u16) -> u16 {
 /// Final command for one control tick.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Actuation {
+    /// Steering angle, signed, in centidegrees.
     pub steer_cdeg: i32,
+    /// Brake command, in parts per thousand.
     pub brake_permille: u16,
+    /// Throttle command, in parts per thousand.
     pub throttle_permille: u16,
 }
 
@@ -55,6 +58,7 @@ pub struct Limiter {
 
 impl Limiter {
     #[must_use]
+    /// A limiter with no previous output.
     pub const fn new() -> Self {
         Self {
             last: Actuation {
@@ -66,6 +70,7 @@ impl Limiter {
     }
 
     #[must_use]
+    /// The output of the last applied tick.
     pub const fn last(&self) -> Actuation {
         self.last
     }
