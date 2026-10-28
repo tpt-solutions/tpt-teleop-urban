@@ -17,9 +17,9 @@ tpt-t-urban-compliance = { workspace = true }
 tpt-t-urban-perception = { workspace = true }
 tpt-t-urban-predict = { workspace = true }
 tpt-t-urban-safety = { workspace = true }
+tpt-t-urban-v2x = { workspace = true }
 
 [dev-dependencies]
 tpt-t-urban-privacy = { workspace = true }
-tpt-t-urban-v2x = { workspace = true }
 tpt-t-urban-delivery = { workspace = true }
 ring = { workspace = true }

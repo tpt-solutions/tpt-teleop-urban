@@ -8,6 +8,8 @@
 //! - [`drive`]: closed-loop route driving, with the guardian watching the
 //!   planner heartbeat and handing over to the pull-over MRM on a stall.
 //! - [`lidar`]: 2D LiDAR by ray casting against boxes, with range noise.
+//! - [`v2x`]: neighbour BSMs encoded, sent over a lossy delayed channel, and
+//!   decoded at the receiver.
 //! - [`gnss`]: GNSS model with noise, multipath jumps, and denial, for driving
 //!   the localization source selector.
 //!
@@ -23,6 +25,7 @@ pub mod plant;
 pub mod render;
 pub mod scenario;
 pub mod sweep;
+pub mod v2x;
 
 pub use gnss::{Condition, Gnss, Window};
 pub use plant::Bicycle;
