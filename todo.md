@@ -168,16 +168,19 @@ hardware bring-up → hardening/release.
 > The TTC threshold grows with the time a full stop takes. A seeded sweep of
 > crossings (`tpt-t-urban-sim`, `sweep` module) found the old rules let a stop
 > end inside the pedestrian contact zone, and it now finds no avoidable
-> crossing hit on nine seeds of 2000. Open: running on a separate partition, the
-> <50 ms budget (needs measurement on target), shoulder-pull MRM path planning,
-> and dual-channel brake failover.
+> crossing hit on nine seeds of 2000. The shoulder pull-over path and its
+> lateral-acceleration bound are in `tpt-t-urban-car::pull_over`. The guardian
+> still brakes in place for an MRM, and nothing yet switches to the pull-over.
+> Open: running on a separate partition, the <50 ms budget (needs measurement on
+> target), wiring the pull-over into the MRM, and dual-channel brake failover.
 
 - [ ] Independent, redundant safety "guardian" state machine (separate
       compute partition from the primary planner)
 - [ ] Automatic Emergency Braking (AEB) trigger, <50ms reaction if the
       primary planner fails to react
-- [ ] Minimal Risk Maneuver (MRM) — e.g. safe pull-to-shoulder — when AEB
-      alone is insufficient
+- [~] Minimal Risk Maneuver (MRM) — e.g. safe pull-to-shoulder — when AEB
+      alone is insufficient (the pull-over path and its feasibility check are
+      done; the guardian's MRM still brakes in place)
 - [ ] Deceleration-sufficiency validation against `tpt-t-urban-car`'s
       planned trajectory
 - [ ] Dual-channel steer-by-wire/brake-by-wire failover monitoring and
