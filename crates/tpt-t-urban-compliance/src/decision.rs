@@ -84,6 +84,12 @@ pub fn evaluate(state: ApproachState, obs: &Observation) -> Evaluation {
             next: ApproachState::Halted,
             reason: "yielding to vehicle on right",
         },
+        // Halted but over the limit is an inconsistent reading. Never proceed on it.
+        ApproachState::Halted if obs.speed_mm_s > obs.speed_limit_mm_s => Evaluation {
+            decision: Decision::Decelerate,
+            next: ApproachState::Halted,
+            reason: "above the limit at the stop line, not proceeding",
+        },
         ApproachState::Halted => Evaluation {
             decision: Decision::Proceed,
             next: ApproachState::Clear,
@@ -128,6 +134,13 @@ mod tests {
             speed_limit_mm_s: LIMIT,
             conflict_on_right: conflict,
         }
+    }
+
+    #[test]
+    fn halted_over_the_limit_does_not_proceed() {
+        let eval = evaluate(ApproachState::Halted, &obs(0, LIMIT + 5_000, false));
+        assert_eq!(eval.decision, Decision::Decelerate);
+        assert_eq!(eval.next, ApproachState::Halted);
     }
 
     #[test]
