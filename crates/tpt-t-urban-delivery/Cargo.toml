@@ -13,3 +13,4 @@ publish = false
 
 [dependencies]
 ring = { workspace = true }
+tpt-t-urban-car = { workspace = true }

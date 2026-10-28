@@ -10,6 +10,7 @@
 
 pub mod compartment;
 pub mod mount;
+pub mod sidewalk;
 pub mod yield_ped;
 
 pub use compartment::{Compartment, Lock, Refusal, hash_code};

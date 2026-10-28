@@ -365,6 +365,7 @@ name = "tpt-t-urban-delivery"
 version = "0.1.0"
 dependencies = [
  "ring",
+ "tpt-t-urban-car",
 ]
 
 [[package]]
