@@ -88,3 +88,17 @@ fn simd_propagation_makes_no_heap_allocations() {
     let (_, n) = allocations_during(|| propagate_cv_simd(&mut agents, 0.1));
     assert_eq!(n, 0, "propagate_cv_simd allocated");
 }
+
+#[test]
+fn batched_imm_step_makes_no_heap_allocations() {
+    use tpt_t_urban_predict::imm_batch::ImmBatch;
+
+    let mut batch = ImmBatch::new();
+    for i in 0..50 {
+        batch.push([i as f32, 0.0, 5.0, 0.0], 0.5, 1.0);
+    }
+    let zx = vec![0.5_f32; 50];
+    let zy = vec![0.1_f32; 50];
+    let (_, n) = allocations_during(|| batch.step(&zx, &zy, 0.1));
+    assert_eq!(n, 0, "ImmBatch::step allocated");
+}

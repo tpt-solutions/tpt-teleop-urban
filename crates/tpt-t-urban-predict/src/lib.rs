@@ -15,6 +15,7 @@
 
 pub mod batch;
 pub mod imm;
+pub mod imm_batch;
 pub mod linalg;
 
 #[cfg(feature = "simd")]
