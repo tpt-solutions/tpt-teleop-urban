@@ -12,7 +12,9 @@ pub mod journal;
 pub mod ledger;
 pub mod store;
 
-pub use decision::{ApproachState, Decision, Evaluation, Observation, evaluate};
+pub use decision::{
+    ApproachState, Decision, Evaluation, Observation, REASONS, evaluate, reason_code, reason_text,
+};
 pub use journal::Record;
 pub use ledger::{Entry, Ledger, VerifyError, verify_chain};
 pub use store::{DurableLedger, Recovery, StoreError};

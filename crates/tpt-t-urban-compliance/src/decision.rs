@@ -60,6 +60,35 @@ pub struct Evaluation {
     pub reason: &'static str,
 }
 
+/// Every reason string [`evaluate`] can return, in a fixed order. A ledger record
+/// stores the index of its reason here, so the text is recovered from the code.
+pub const REASONS: [&str; 9] = [
+    "approaching stop line",
+    "stopped at stop line",
+    "arrived at stop line above zero speed, must stop",
+    "yielding to vehicle on right",
+    "above the limit at the stop line, not proceeding",
+    "right-of-way clear, proceeding",
+    "speed above posted limit",
+    "no stop control on this approach",
+    "stop sign cleared",
+];
+
+/// The index of `reason` in [`REASONS`], or `None` if it is not one of them.
+#[must_use]
+pub fn reason_code(reason: &str) -> Option<u8> {
+    REASONS
+        .iter()
+        .position(|r| *r == reason)
+        .and_then(|i| u8::try_from(i).ok())
+}
+
+/// The text for a reason code, or `None` if the code is unknown.
+#[must_use]
+pub fn reason_text(code: u8) -> Option<&'static str> {
+    REASONS.get(usize::from(code)).copied()
+}
+
 /// Evaluates one step of the stop-sign FSM.
 #[must_use]
 pub fn evaluate(state: ApproachState, obs: &Observation) -> Evaluation {
@@ -130,6 +159,43 @@ fn clear_or_limit(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_reason_evaluate_returns_is_in_the_table() {
+        // Sweep the inputs that reach each branch, in every state.
+        let states = [
+            ApproachState::Approaching,
+            ApproachState::Halted,
+            ApproachState::Clear,
+        ];
+        let distances = [-500, 0, 1, 20_000];
+        let speeds = [0, 5_000, 13_900, 20_000];
+        let limits = [13_900, 5_000];
+        for state in states {
+            for distance in distances {
+                for speed in speeds {
+                    for limit in limits {
+                        for stop_sign in [false, true] {
+                            for conflict in [false, true] {
+                                let o = Observation {
+                                    stop_sign,
+                                    distance_to_line_mm: distance,
+                                    speed_mm_s: speed,
+                                    speed_limit_mm_s: limit,
+                                    conflict_on_right: conflict,
+                                };
+                                let reason = evaluate(state, &o).reason;
+                                let code = reason_code(reason)
+                                    .unwrap_or_else(|| panic!("untabled reason {reason:?}"));
+                                assert_eq!(reason_text(code), Some(reason));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(reason_text(REASONS.len() as u8), None);
+    }
 
     const LIMIT: u32 = 13_900; // 50 km/h in mm/s
 

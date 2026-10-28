@@ -8,8 +8,11 @@
 //! V2X messages and planner outputs have no producer yet, so they have no
 //! variant here.
 
+use crate::decision::{Decision, REASONS};
+
 const TAG_GUARDIAN: u8 = 1;
 const TAG_OUTCOME: u8 = 2;
+const TAG_DECISION: u8 = 3;
 
 /// One thing worth keeping in the black box.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,6 +32,15 @@ pub enum Record {
         aeb_engaged: bool,
         /// Vehicle speed at the end, in millimetres per second.
         final_speed_mm_s: u32,
+    },
+    /// The stop-sign FSM decided something for one frame.
+    Decision {
+        /// Simulated time of the decision, in milliseconds.
+        t_ms: u64,
+        /// What the vehicle must do.
+        decision: Decision,
+        /// Index into [`crate::REASONS`], as returned by [`crate::reason_code`].
+        reason: u8,
     },
 }
 
@@ -52,6 +64,17 @@ impl Record {
                 out.extend_from_slice(&final_speed_mm_s.to_be_bytes());
                 out
             }
+            Self::Decision {
+                t_ms,
+                decision,
+                reason,
+            } => {
+                let mut out = vec![TAG_DECISION];
+                out.extend_from_slice(&t_ms.to_be_bytes());
+                out.push(decision as u8);
+                out.push(reason);
+                out
+            }
         }
     }
 
@@ -70,8 +93,29 @@ impl Record {
                 aeb_engaged: flag(rest[1])?,
                 final_speed_mm_s: u32::from_be_bytes(rest[2..6].try_into().ok()?),
             }),
+            TAG_DECISION if rest.len() == 10 => {
+                let reason = rest[9];
+                if usize::from(reason) >= REASONS.len() {
+                    return None;
+                }
+                Some(Self::Decision {
+                    t_ms: u64::from_be_bytes(rest[0..8].try_into().ok()?),
+                    decision: decision_from(rest[8])?,
+                    reason,
+                })
+            }
             _ => None,
         }
+    }
+}
+
+fn decision_from(byte: u8) -> Option<Decision> {
+    match byte {
+        0 => Some(Decision::Proceed),
+        1 => Some(Decision::Decelerate),
+        2 => Some(Decision::Yield),
+        3 => Some(Decision::Stop),
+        _ => None,
     }
 }
 
@@ -86,6 +130,21 @@ fn flag(byte: u8) -> Option<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::decision::reason_code;
+
+    #[test]
+    fn a_decision_record_round_trips_and_rejects_a_bad_reason_code() {
+        let record = Record::Decision {
+            t_ms: 2_500,
+            decision: Decision::Stop,
+            reason: reason_code("stopped at stop line").expect("tabled"),
+        };
+        let bytes = record.encode();
+        assert_eq!(Record::decode(&bytes), Some(record));
+        let mut bad = bytes.clone();
+        *bad.last_mut().expect("non-empty") = REASONS.len() as u8;
+        assert_eq!(Record::decode(&bad), None);
+    }
 
     #[test]
     fn every_record_round_trips() {
