@@ -25,8 +25,8 @@
 //! target-hardware latency budget is a separate check.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use tpt_t_urban_car::{Limits, Point, Pose, pure_pursuit, speed_profile};
@@ -241,6 +241,11 @@ pub fn run_paced(frames: u32, dt_s: f32, period: Duration) -> PipelineReport {
 }
 
 fn run_with(frames: u32, dt_s: f32, period: Option<Duration>) -> PipelineReport {
+    // Each run spins four threads. Two runs at once compete for the cores and
+    // stretch each other's latency, so runs take turns.
+    static RUNS: Mutex<()> = Mutex::new(());
+    let _turn = RUNS.lock().unwrap_or_else(PoisonError::into_inner);
+
     let (mut scan_tx, mut scan_rx) = channel::<ScanMsg, CAPACITY>();
     let (mut track_tx, mut track_rx) = channel::<TrackMsg, CAPACITY>();
     let (mut edge_track_tx, mut edge_track_rx) = channel::<TrackMsg, CAPACITY>();
