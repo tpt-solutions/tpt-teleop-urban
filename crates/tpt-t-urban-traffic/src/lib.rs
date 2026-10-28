@@ -2,11 +2,14 @@
 //!
 //! - [`controller`]: fixed-time signal controller with yellow and all-red
 //!   clearance, and emergency-vehicle preemption driven by SRM.
+//! - [`optimize`]: demand-proportional green split for one intersection, and
+//!   corridor offsets for a green wave across several.
 //!
-//! Not implemented yet: congestion optimization across intersections, and
-//! SPAT/MAP broadcast, which need the V2X message encoders in
-//! `tpt-t-urban-v2x`.
+//! Not implemented yet: SPAT/MAP broadcast, which needs the V2X message encoders
+//! in `tpt-t-urban-v2x`.
 
 pub mod controller;
+pub mod optimize;
 
 pub use controller::{Controller, Interval, Output};
+pub use optimize::{allocate_greens, corridor_offsets};

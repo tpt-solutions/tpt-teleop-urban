@@ -48,6 +48,8 @@ pub struct Controller<const N: usize> {
     /// Set when the controller is in a yellow/all-red transition toward a
     /// preempted phase rather than the next phase in the cycle.
     transitioning_to_preempt: bool,
+    /// Green times queued by [`Controller::set_greens`], applied at the next phase start.
+    pending_greens: Option<[u32; N]>,
 }
 
 impl<const N: usize> Controller<N> {
@@ -66,7 +68,15 @@ impl<const N: usize> Controller<N> {
             elapsed_ms: 0,
             preempt_target: None,
             transitioning_to_preempt: false,
+            pending_greens: None,
         }
+    }
+
+    /// Queues new green times, typically from
+    /// [`crate::optimize::allocate_greens`]. They apply when the next phase
+    /// starts, so the phase running now keeps the green it started with.
+    pub fn set_greens(&mut self, green_ms: [u32; N]) {
+        self.pending_greens = Some(green_ms);
     }
 
     /// Advances by `dt_ms`. `preempt` is the phase an emergency vehicle requests,
@@ -121,9 +131,15 @@ impl<const N: usize> Controller<N> {
                 Interval::Green
             }
         };
-        // Once the preempted phase is green, its request keeps it there.
-        if self.interval == Interval::Green && self.preempt_target == Some(self.current) {
-            self.transitioning_to_preempt = false;
+        if self.interval == Interval::Green {
+            // Queued greens take effect at a phase start, never mid-green.
+            if let Some(green_ms) = self.pending_greens.take() {
+                self.green_ms = green_ms;
+            }
+            // Once the preempted phase is green, its request keeps it there.
+            if self.preempt_target == Some(self.current) {
+                self.transitioning_to_preempt = false;
+            }
         }
     }
 }
@@ -229,5 +245,25 @@ mod tests {
         let outs = run(&mut c, 500, 100, |_| Some(7));
         // The request is discarded, so no preemption is ever reported.
         assert!(outs.iter().all(|o| !o.preempted));
+    }
+
+    /// Count of 100 ms outputs showing `phase` in green.
+    fn green_steps(outs: &[Output], phase: usize) -> usize {
+        outs.iter()
+            .filter(|o| o.phase == phase && o.interval == Interval::Green)
+            .count()
+    }
+
+    #[test]
+    fn queued_greens_apply_at_the_next_phase_start() {
+        let mut c = Controller::new([5_000, 5_000]);
+        // Phase 0 is running. Queue a short phase 1 green while it runs.
+        c.set_greens([5_000, 2_000]);
+        let outs = run(&mut c, 120, 100, |_| None);
+        // Phase 0 keeps the 5 s green it started with.
+        assert!(green_steps(&outs, 0) >= 45, "running green was cut short");
+        // Phase 1 takes the queued 2 s green, not the original 5 s.
+        let p1 = green_steps(&outs, 1);
+        assert!((19..=21).contains(&p1), "phase 1 green was {p1} steps");
     }
 }
