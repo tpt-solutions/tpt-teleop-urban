@@ -18,8 +18,18 @@ tpt-t-urban-perception = { workspace = true }
 tpt-t-urban-predict = { workspace = true }
 tpt-t-urban-safety = { workspace = true }
 tpt-t-urban-v2x = { workspace = true }
+eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"], optional = true }
 
 [dev-dependencies]
 tpt-t-urban-privacy = { workspace = true }
 tpt-t-urban-delivery = { workspace = true }
 ring = { workspace = true }
+
+[features]
+# The egui visualizer. Off by default, so the workspace builds without the GUI stack.
+viz = ["dep:eframe"]
+
+[[bin]]
+name = "visualizer"
+path = "src/bin/visualizer.rs"
+required-features = ["viz"]

@@ -10,6 +10,8 @@
 //! - [`lidar`]: 2D LiDAR by ray casting against boxes, with range noise.
 //! - [`v2x`]: neighbour BSMs encoded, sent over a lossy delayed channel, and
 //!   decoded at the receiver.
+//! - [`viz`]: drawing model for the visualizer. The `visualizer` binary needs the
+//!   `viz` feature.
 //! - [`gnss`]: GNSS model with noise, multipath jumps, and denial, for driving
 //!   the localization source selector.
 //!
@@ -26,6 +28,7 @@ pub mod render;
 pub mod scenario;
 pub mod sweep;
 pub mod v2x;
+pub mod viz;
 
 pub use gnss::{Condition, Gnss, Window};
 pub use plant::Bicycle;
