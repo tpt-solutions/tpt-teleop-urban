@@ -89,7 +89,11 @@ mod tests {
             .map(|w| curvature(w[0], w[1], w[2]))
             .fold(0.0_f32, f32::max);
         // Lateral acceleration v²κ must stay within the limit, with discretization slack.
-        assert!(v * v * peak <= lat * 1.02, "lateral accel {} exceeds {lat}", v * v * peak);
+        assert!(
+            v * v * peak <= lat * 1.02,
+            "lateral accel {} exceeds {lat}",
+            v * v * peak
+        );
     }
 
     #[test]

@@ -25,7 +25,11 @@ impl Rng {
             stop_sign: self.unit() < 0.9,
             distance_to_line_mm: (self.unit() * 40_000.0) as i32 - 5_000,
             // A fifth of the draws are standstill, so the FSM reaches `Halted`.
-            speed_mm_s: if self.unit() < 0.2 { 0 } else { (self.unit() * 25_000.0) as u32 },
+            speed_mm_s: if self.unit() < 0.2 {
+                0
+            } else {
+                (self.unit() * 25_000.0) as u32
+            },
             speed_limit_mm_s: LIMIT_MM_S,
             conflict_on_right: self.unit() < 0.3,
         }
@@ -42,10 +46,12 @@ fn violation(state: ApproachState, obs: &Observation, decision: Decision) -> Opt
             return Some("reached the line still moving and did not stop");
         }
     }
-    if obs.stop_sign && state == ApproachState::Halted && obs.conflict_on_right {
-        if decision != Decision::Yield {
-            return Some("halted with a vehicle on the right and did not yield");
-        }
+    if obs.stop_sign
+        && state == ApproachState::Halted
+        && obs.conflict_on_right
+        && decision != Decision::Yield
+    {
+        return Some("halted with a vehicle on the right and did not yield");
     }
     if decision == Decision::Proceed && obs.speed_mm_s > obs.speed_limit_mm_s {
         return Some("proceeded above the speed limit");
@@ -76,8 +82,14 @@ fn the_fsm_keeps_its_rules_over_random_sequences() {
     }
     // Coverage: every approach state and every decision must actually occur, or
     // the sweep is not testing the rules it claims to.
-    assert!(visited.iter().all(|&v| v), "not every state was reached: {visited:?}");
-    assert!(decided.iter().all(|&v| v), "not every decision was reached: {decided:?}");
+    assert!(
+        visited.iter().all(|&v| v),
+        "not every state was reached: {visited:?}"
+    );
+    assert!(
+        decided.iter().all(|&v| v),
+        "not every decision was reached: {decided:?}"
+    );
     assert!(
         failures.is_empty(),
         "{} of {steps} steps broke a rule, first: {:?}",
