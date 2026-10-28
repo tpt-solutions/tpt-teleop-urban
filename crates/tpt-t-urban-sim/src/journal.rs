@@ -7,6 +7,7 @@
 
 use tpt_t_urban_compliance::{DurableLedger, Record, StoreError};
 
+use crate::pipeline::PipelineReport;
 use crate::scenario::{Outcome, Scenario, run_crossing_traced};
 
 /// Runs the crossing and journals it. Returns the outcome, which the caller can
@@ -37,6 +38,22 @@ pub fn run_journaled(s: &Scenario, ledger: &mut DurableLedger) -> Result<Outcome
     };
     ledger.append(&outcome_record.encode())?;
     Ok(outcome)
+}
+
+/// Appends a pipeline run's events to the ledger, in the order the report lists
+/// them. Returns the number of records written.
+///
+/// # Errors
+///
+/// Returns the store error if any record cannot be written and synced.
+pub fn journal_pipeline(
+    report: &PipelineReport,
+    ledger: &mut DurableLedger,
+) -> Result<usize, StoreError> {
+    for record in &report.events {
+        ledger.append(&record.encode())?;
+    }
+    Ok(report.events.len())
 }
 
 #[cfg(test)]
@@ -87,6 +104,51 @@ mod tests {
             (collided, aeb_engaged),
             (outcome.collided, outcome.aeb_engaged)
         );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn pipeline_events_survive_a_reopen_and_decode_to_the_same_records() {
+        let path =
+            std::env::temp_dir().join(format!("tpt-sim-pipeline-{}.log", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let pkcs8 = Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).expect("keygen");
+        let signer = || Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("pkcs8");
+
+        let report = crate::pipeline::run(120, 0.1);
+        {
+            let (mut ledger, _) = DurableLedger::open(&path, signer()).unwrap();
+            assert_eq!(
+                journal_pipeline(&report, &mut ledger).unwrap(),
+                report.events.len()
+            );
+        }
+
+        let (ledger, recovery) = DurableLedger::open(&path, signer()).unwrap();
+        assert_eq!(recovery.discarded_bytes, 0);
+        assert_eq!(verify_chain(&ledger.public_key(), ledger.entries()), Ok(()));
+        let decoded: Vec<Record> = ledger
+            .entries()
+            .iter()
+            .map(|e| Record::decode(&e.body).expect("every body decodes"))
+            .collect();
+        assert_eq!(decoded, report.events);
+        // The FSM asks to decelerate at the stop line, and the guardian intervenes.
+        assert!(decoded.iter().any(|r| matches!(
+            r,
+            Record::Decision {
+                decision: tpt_t_urban_compliance::Decision::Decelerate,
+                ..
+            }
+        )));
+        assert!(decoded.iter().any(|r| matches!(
+            r,
+            Record::Guardian {
+                intervening: true,
+                ..
+            }
+        )));
 
         let _ = std::fs::remove_file(&path);
     }
