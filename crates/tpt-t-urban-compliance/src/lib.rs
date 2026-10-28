@@ -8,9 +8,11 @@
 //! Implements Phase 6 of `todo.md`. The full rule set is not implemented yet.
 
 pub mod decision;
+pub mod journal;
 pub mod ledger;
 pub mod store;
 
 pub use decision::{ApproachState, Decision, Evaluation, Observation, evaluate};
+pub use journal::Record;
 pub use ledger::{Entry, Ledger, VerifyError, verify_chain};
 pub use store::{DurableLedger, Recovery, StoreError};
