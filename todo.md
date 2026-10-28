@@ -437,9 +437,9 @@ hardware bring-up → hardening/release.
 > figures are under budget. Target-hardware measurement is open, as are the
 > release steps. Coverage-guided fuzzing now runs for the V2X decoders (Phase 3).
 > Crate-level rustdoc is audited: all 13 crates have module docs, and `cargo doc`
-> builds clean with the default lints. Item-level docs are incomplete. Running
-> `cargo doc` with `RUSTDOCFLAGS="-W missing_docs"` reports 185 items with no docs,
-> across 12 crates (all but teleop).
+> builds clean with the default lints. Item-level docs are complete:
+> `RUSTDOCFLAGS="-D missing_docs" cargo doc --workspace --no-deps` passes. The
+> 185 undocumented items found earlier are now documented.
 - [x] `cargo clippy --workspace --all-targets -- -D warnings` clean
       (stable workspace)
 - [x] Nightly clippy pass clean for `tpt-t-urban-predict` and
@@ -450,9 +450,10 @@ hardware bring-up → hardening/release.
 - [x] Fuzz/property testing for custom zero-allocation parsers (V2X UPER)
       (cargo-fuzz targets for BSM and the UPER primitives, plus property tests;
       a longer campaign and a CI job are still to do)
-- [~] Developer docs complete (`docs/quickstart.md`, `docs/ARCHITECTURE.md`,
+- [x] Developer docs complete (`docs/quickstart.md`, `docs/ARCHITECTURE.md`,
       crate-level rustdoc). Both docs are written and their commands were run.
-      Crate-level rustdoc is audited. Item-level docs are open (185 items).
+      Crate-level rustdoc is audited, and every public item is documented
+      (`-D missing_docs` passes).
 - [~] README finalized (status section and test instructions updated; wording
       needs a review before the release)
 - [ ] Tag `v1.0.0` — "v1 Monolithic Release"
