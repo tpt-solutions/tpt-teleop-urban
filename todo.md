@@ -132,13 +132,21 @@ hardware bring-up → hardening/release.
 > reference. A `simd` feature adds an eight-wide `portable_simd` kernel for
 > batched constant-velocity propagation, tested against the scalar path on
 > nightly. Host timing for a 50-agent IMM frame is about 6 µs against the 2 ms
-> budget. Open: a SIMD IMM filter itself, a crate-local nightly toolchain, and
-> target-hardware timing.
+> budget. A batched IMM (`predict::imm_batch`) runs the same two-model filter
+> for many agents in structure-of-arrays form. One generic kernel runs one lane
+> on stable and eight `f32x8` lanes under `simd`, and the two agree bit for bit.
+> It matches the per-agent `Imm` within 1e-3 over a turn. Host timing for 50
+> agents: about 5.8 µs on stable, 3.1 µs on nightly, against 7.4 to 8.8 µs for
+> the per-agent filter. Open: a crate-local nightly toolchain, and target-hardware
+> timing.
 - [ ] Crate-local nightly toolchain override + `#![feature(portable_simd)]`,
       CI job scoped to this crate only (rest of workspace stays stable)
-- [ ] Custom SIMD-accelerated Interacting Multiple Model (IMM) Kalman Filter
-- [ ] Parallel kinematic-state processing of 100+ dynamic agents via
-      `portable-simd`
+- [x] Custom SIMD-accelerated Interacting Multiple Model (IMM) Kalman Filter
+      (`imm_batch`, eight lanes under `simd`; the lane-width choice is the
+      kernel's, not hand-tuned)
+- [~] Parallel kinematic-state processing of 100+ dynamic agents via
+      `portable-simd` (batched IMM is tested at 27 agents and timed at 50; 100+ is
+      not timed yet)
 - [ ] Probabilistic trajectory cone generation over a 3-second horizon,
       accounting for human unpredictability (pedestrians, cyclists, vehicles)
 - [ ] Benchmark: <2ms per frame at 30Hz for a busy intersection (50+ agents)
