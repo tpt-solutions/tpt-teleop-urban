@@ -16,6 +16,7 @@ use std::time::Instant;
 use tpt_t_urban_car::{Limits, Point, speed_profile};
 use tpt_t_urban_compliance::{ApproachState, Observation, evaluate};
 use tpt_t_urban_predict::Imm;
+use tpt_t_urban_predict::imm_batch::ImmBatch;
 use tpt_t_urban_privacy::{Frame, Rect, Redactor};
 use tpt_t_urban_safety::{Guardian, Inputs, Obstacle};
 use tpt_t_urban_v2x::bsm::BsmCoreData;
@@ -92,6 +93,24 @@ fn main() {
     report(
         "predict: IMM frame, 50 agents",
         frame_ns,
+        "< 2 ms",
+        2_000_000.0,
+    );
+
+    // The same 50 agents in one structure-of-arrays batch. The batch uses the
+    // widest lane the build supports: eight agents per step under `simd`.
+    let mut batch = ImmBatch::new();
+    for i in 0..50 {
+        batch.push([i as f32, 0.0, 5.0, 0.0], 0.5, 1.0);
+    }
+    let zx: Vec<f32> = (0..50).map(|i| i as f32 + 0.5).collect();
+    let zy = vec![0.0_f32; 50];
+    let batch_ns = mean_ns(2_000, || {
+        batch.step(black_box(&zx), black_box(&zy), 0.033);
+    });
+    report(
+        "predict: batched IMM frame, 50 agents",
+        batch_ns,
         "< 2 ms",
         2_000_000.0,
     );

@@ -3,7 +3,7 @@
 //! - [`plant`]: kinematic bicycle model of the vehicle.
 //! - [`scenario`]: a pedestrian crossing scenario that runs the whole chain:
 //!   noisy measurements → IMM prediction → guardian → vehicle.
-//! - [`sweep`]: seeded sweep over many crossings, checking the guardian against
+//! - [`mod@sweep`]: seeded sweep over many crossings, checking the guardian against
 //!   the crossings that were avoidable.
 //! - [`gnss`]: GNSS model with noise, multipath jumps, and denial, for driving
 //!   the localization source selector.
