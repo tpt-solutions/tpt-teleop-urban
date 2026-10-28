@@ -1,4 +1,4 @@
-//! Headless urban simulator, scenario injection, and egui visualizer.
+//! Headless urban simulator, scenario injection, and HTML visualizer.
 //!
 //! - [`plant`]: kinematic bicycle model of the vehicle.
 //! - [`scenario`]: a pedestrian crossing scenario that runs the whole chain:
@@ -10,13 +10,13 @@
 //! - [`lidar`]: 2D LiDAR by ray casting against boxes, with range noise.
 //! - [`v2x`]: neighbour BSMs encoded, sent over a lossy delayed channel, and
 //!   decoded at the receiver.
-//! - [`viz`]: drawing model for the visualizer. The `visualizer` binary needs the
-//!   `viz` feature.
+//! - [`viz`]: drawing model for the visualizer. The `visualizer` binary writes
+//!   the frames into an HTML page.
 //! - [`gnss`]: GNSS model with noise, multipath jumps, and denial, for driving
 //!   the localization source selector.
 //!
 //! Not implemented yet: 3D city rendering, sensor raycasting, V2X traffic
-//! injection, and the egui visualizer. Those are Phase 15 items in `todo.md`.
+//! injection, and the interactive visualizer. Those are Phase 15 items in `todo.md`.
 
 pub mod drive;
 pub mod gnss;

@@ -1,7 +1,7 @@
 //! Drawing model for the visualizer: a crossing run as a list of frames.
 //!
 //! The model holds no GUI types, so it is tested without a window. The
-//! `visualizer` binary, built with the `viz` feature, only draws these frames.
+//! `visualizer` binary writes these frames into an HTML page.
 
 use crate::scenario::{
     CONTACT_M, FRONT_OFFSET_M, LANE_HALF_WIDTH_M, Scenario, TracePoint, run_crossing_traced,

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tpt-t-urban crossing</title>
+<style>
+  body { margin: 16px; font-family: system-ui, sans-serif; background: #ffffff; color: #1a202c; }
+  #controls { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  #step { flex: 1; min-width: 200px; }
+  #readout { margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+  canvas { display: block; width: 100%; max-width: 900px; height: auto; background: #fbfbf8; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a202c; color: #e2e8f0; }
+  }
+</style>
+</head>
+<body>
+<div id="controls">
+  <button id="play" type="button">Play</button>
+  <input id="step" type="range" min="0" value="0">
+  <span id="index"></span>
+</div>
+<div id="readout"></div>
+<canvas id="scene" width="900" height="360"></canvas>
+<script>
+// Frame rows: [t, vehicle_x, speed, ped_x, ped_y, intervening, gap, in_contact].
+const FRAMES = [__FRAMES__];
+// Scene bounds of the run: [x_min, x_max, y_min, y_max], in metres.
+const BOUNDS = __BOUNDS__;
+__CONSTS__
+
+const [T, VX, SPEED, PX, PY, OVERRIDE, GAP, CONTACT] = [0, 1, 2, 3, 4, 5, 6, 7];
+const X0 = BOUNDS[0] - 2, X1 = BOUNDS[1] + 2;
+const Y0 = BOUNDS[2] - 1, Y1 = BOUNDS[3] + 1;
+
+const canvas = document.getElementById("scene");
+const ctx = canvas.getContext("2d");
+const playButton = document.getElementById("play");
+const slider = document.getElementById("step");
+const indexLabel = document.getElementById("index");
+const readout = document.getElementById("readout");
+const last = Math.max(FRAMES.length - 1, 0);
+
+let index = 0;
+let playing = false;
+
+// Maps a world point to canvas pixels, with north up.
+function toScreen(x, y) {
+  const u = (x - X0) / (X1 - X0);
+  const v = (y - Y0) / (Y1 - Y0);
+  return [u * canvas.width, canvas.height - v * canvas.height];
+}
+
+function fillBox(xa, ya, xb, yb, colour) {
+  const [ax, ay] = toScreen(xa, ya);
+  const [bx, by] = toScreen(xb, yb);
+  ctx.fillStyle = colour;
+  ctx.fillRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+}
+
+function draw(f) {
+  ctx.fillStyle = "#f5f5f5";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // The lane band, from one edge of the view to the other.
+  fillBox(X0, LANE_HALF, X1, -LANE_HALF, "#dcdcdc");
+
+  // The vehicle: the bumper is at `vehicle_x + FRONT`, the rear at `front - LEN`.
+  const front = f[VX] + FRONT;
+  const colour = f[OVERRIDE] ? "#c82828" : "#285ac8";
+  fillBox(front - LEN, WID / 2, front, -WID / 2, colour);
+
+  // The pedestrian, with a ring while in contact.
+  const [px, py] = toScreen(f[PX], f[PY]);
+  ctx.beginPath();
+  ctx.arc(px, py, 6, 0, 2 * Math.PI);
+  ctx.fillStyle = "#e68c1e";
+  ctx.fill();
+  if (f[CONTACT]) {
+    ctx.beginPath();
+    ctx.arc(px, py, 12, 0, 2 * Math.PI);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#ff0000";
+    ctx.stroke();
+  }
+}
+
+function render() {
+  slider.value = index;
+  indexLabel.textContent = FRAMES.length ? `step ${index} / ${last}` : "";
+  playButton.textContent = playing ? "Pause" : "Play";
+  if (!FRAMES.length) {
+    readout.textContent = "no frames";
+    return;
+  }
+  const f = FRAMES[index];
+  readout.textContent =
+    `t ${f[T].toFixed(2)} s   speed ${f[SPEED].toFixed(2)} m/s   ` +
+    `gap ${f[GAP].toFixed(2)} m   guardian ${f[OVERRIDE] ? "intervening" : "nominal"}` +
+    (f[CONTACT] ? "   CONTACT" : "");
+  draw(f);
+}
+
+function tick() {
+  index = Math.min(index + 1, last);
+  if (index === last) {
+    playing = false;
+  }
+  render();
+  if (playing) {
+    requestAnimationFrame(tick);
+  }
+}
+
+playButton.addEventListener("click", () => {
+  playing = !playing;
+  if (playing && index === last) {
+    index = 0;
+  }
+  if (playing) {
+    requestAnimationFrame(tick);
+  }
+  render();
+});
+
+slider.max = last;
+slider.addEventListener("input", () => {
+  playing = false;
+  index = Number(slider.value);
+  render();
+});
+
+render();
+</script>
+</body>
+</html>

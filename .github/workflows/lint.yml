@@ -31,7 +31,8 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - name: Clippy SIMD crates
-        run: cargo clippy -p tpt-t-urban-predict --features simd -p tpt-t-urban-privacy --all-targets -- -D warnings
+        # `+nightly` overrides rust-toolchain.toml, which pins stable.
+        run: cargo +nightly clippy -p tpt-t-urban-predict --features simd -p tpt-t-urban-privacy --all-targets -- -D warnings
 
   deny:
     name: cargo-deny

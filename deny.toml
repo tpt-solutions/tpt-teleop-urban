@@ -1,3 +1,14 @@
+[graph]
+# Only the native targets ship. Without this, cargo-deny also walks the
+# wasm32-only branch of winit, which pulls in `tokio` (banned by spec §7).
+targets = [
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+]
+
 [advisories]
 version = 2
 yanked = "deny"

@@ -12,8 +12,8 @@ Design doc: [spec.txt](spec.txt). Teleop integration contract:
 Pre-release (v1.0.0 target). Each crate implements part of its scope, and the
 workspace tests pass. Open work is tracked phase by phase in
 [todo.md](todo.md). The largest gaps are the V2X decoders for MAP, SPAT and SRM,
-which need the paywalled SAE J2735 module; sensor-driven perception; the egui
-visualizer; and all target-hardware measurements. `cargo test --workspace`
+which need the paywalled SAE J2735 module; sensor-driven perception; and
+all target-hardware measurements. `cargo test --workspace`
 runs the tests, and `cargo run -p tpt-t-urban-sim --example sweep` runs the
 seeded crossing sweep.
 
@@ -33,7 +33,7 @@ seeded crossing sweep.
 | `tpt-t-urban-traffic` | Infrastructure-side intersection management |
 | `tpt-t-urban-edge` | Bare-metal/RTOS actuation layer (`no_std` target) |
 | `tpt-t-urban-teleop` | Adapter to `tpt-teleop`'s `DomainTeleopInterface` |
-| `tpt-t-urban-sim` | Headless city simulator and egui visualizer |
+| `tpt-t-urban-sim` | Headless city simulator and HTML visualizer |
 
 ## Zero-Allocation Data Path
 

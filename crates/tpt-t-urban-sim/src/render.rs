@@ -1,18 +1,58 @@
 //! Headless renderer for crossing-scenario traces: an SVG top-down view.
 //!
-//! This is the no-display stand-in for the egui visualizer (todo.md Phase 15).
+//! This is the no-display stand-in for the interactive visualizer (todo.md Phase 15).
 //! It draws the lane, the vehicle path, the pedestrian path, and the points
 //! where the guardian was overriding the planner. It only formats text, so it
 //! runs anywhere, including CI.
 
 use std::fmt::Write;
 
-use crate::scenario::TracePoint;
+use crate::scenario::{FRONT_OFFSET_M, LANE_HALF_WIDTH_M, TracePoint};
+use crate::viz::{Bounds, Frame};
 
 /// Drawing area in pixels.
 const WIDTH_PX: f32 = 900.0;
 const HEIGHT_PX: f32 = 360.0;
 const MARGIN_PX: f32 = 30.0;
+
+/// Vehicle length and width used for the drawing, in metres.
+const VEHICLE_LENGTH_M: f32 = 4.5;
+const VEHICLE_WIDTH_M: f32 = 1.8;
+
+/// The interactive viewer page. `viewer_html` fills in its placeholders.
+const VIEWER_TEMPLATE: &str = include_str!("viewer.html");
+
+/// Renders `frames` as a self-contained HTML page with Play/Pause and a step
+/// slider. The page holds the frames inline and draws them on a canvas, so it
+/// needs no network access and no script dependencies.
+#[must_use]
+pub fn viewer_html(frames: &[Frame], bounds: Bounds) -> String {
+    let mut rows = String::new();
+    for f in frames {
+        let _ = write!(
+            rows,
+            "[{:.3},{:.3},{:.3},{:.3},{:.3},{},{:.3},{}],",
+            f.t_s,
+            f.vehicle_x,
+            f.speed_mps,
+            f.pedestrian[0],
+            f.pedestrian[1],
+            u8::from(f.intervening),
+            f.gap_m,
+            u8::from(f.in_contact),
+        );
+    }
+    let [x0, x1] = bounds.x;
+    let [y0, y1] = bounds.y;
+    let consts = format!(
+        "const LANE_HALF = {LANE_HALF_WIDTH_M:?}, FRONT = {FRONT_OFFSET_M:?}, \
+         LEN = {VEHICLE_LENGTH_M:?}, WID = {VEHICLE_WIDTH_M:?};"
+    );
+    VIEWER_TEMPLATE
+        .replace("__FRAMES__", &rows)
+        .replace("__BOUNDS__", &format!("[{x0:?},{x1:?},{y0:?},{y1:?}]"))
+        .replace("__CONSTS__", &consts)
+}
 
 /// Renders `trace` as an SVG document. `x_span_m` is the metre range shown along
 /// the horizontal axis, and `y_span_m` the range shown vertically.
@@ -90,6 +130,17 @@ mod tests {
         assert!(svg.trim_end().ends_with("</svg>"));
         assert_eq!(svg.matches("<polyline").count(), 2);
         assert!(svg.contains("#e53e3e"), "expected override markers");
+    }
+
+    #[test]
+    fn viewer_page_inlines_every_frame_and_fills_all_placeholders() {
+        let frames = crate::viz::frames(&Scenario::default());
+        let html = viewer_html(&frames, crate::viz::bounds(&frames));
+        assert!(html.starts_with("<!doctype html>"));
+        assert!(html.trim_end().ends_with("</html>"));
+        assert!(!html.contains("__"), "a placeholder was left unfilled");
+        let rows = html.matches("],[").count() + 1;
+        assert_eq!(rows, frames.len());
     }
 
     #[test]
