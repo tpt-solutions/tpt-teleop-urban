@@ -35,6 +35,31 @@ pub fn feasible(speed_m_s: f32, offset_m: f32, available_m: f32, lateral_accel: 
     min_length(speed_m_s, offset_m, lateral_accel) <= available_m
 }
 
+/// The minimal-risk maneuver the planner should run.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Maneuver {
+    /// Pull over to the shoulder along a path of `length_m`.
+    PullOver {
+        /// Length of the pull-over path, in metres.
+        length_m: f32,
+    },
+    /// No shoulder fits in the available distance, so brake in place.
+    BrakeInPlace,
+}
+
+/// Chooses the MRM for a vehicle at `speed_m_s` with a shoulder `offset_m` away
+/// and `available_m` of road ahead. A pull-over is chosen only if it fits under
+/// `lateral_accel`, and it is sized to the length from [`min_length`].
+#[must_use]
+pub fn choose(speed_m_s: f32, offset_m: f32, available_m: f32, lateral_accel: f32) -> Maneuver {
+    let needed = min_length(speed_m_s, offset_m, lateral_accel);
+    if needed.is_finite() && needed <= available_m {
+        Maneuver::PullOver { length_m: needed }
+    } else {
+        Maneuver::BrakeInPlace
+    }
+}
+
 /// Fills `out` with `n` points of the pull-over path, from the origin to
 /// `(length_m, offset_m)`, and returns how many were written.
 ///
@@ -115,6 +140,18 @@ mod tests {
         assert!(feasible(12.0, 3.5, need + 1.0, 2.5));
         assert!(!feasible(12.0, 3.5, need - 1.0, 2.5));
         assert!(!feasible(12.0, 3.5, 1_000.0, 0.0));
+    }
+
+    #[test]
+    fn the_planner_pulls_over_only_when_a_shoulder_fits() {
+        let need = min_length(12.0, 3.5, 2.5);
+        assert_eq!(
+            choose(12.0, 3.5, need + 5.0, 2.5),
+            Maneuver::PullOver { length_m: need }
+        );
+        assert_eq!(choose(12.0, 3.5, need - 5.0, 2.5), Maneuver::BrakeInPlace);
+        // No lateral limit means no pull-over can be sized.
+        assert_eq!(choose(12.0, 3.5, 1_000.0, 0.0), Maneuver::BrakeInPlace);
     }
 
     #[test]
