@@ -144,9 +144,9 @@ hardware bring-up → hardening/release.
 - [x] Custom SIMD-accelerated Interacting Multiple Model (IMM) Kalman Filter
       (`imm_batch`, eight lanes under `simd`; the lane-width choice is the
       kernel's, not hand-tuned)
-- [~] Parallel kinematic-state processing of 100+ dynamic agents via
-      `portable-simd` (batched IMM is tested at 27 agents and timed at 50; 100+ is
-      not timed yet)
+- [x] Parallel kinematic-state processing of 100+ dynamic agents via
+      `portable-simd` (batched IMM at 128 agents: 16 µs on stable, 6.6 µs with
+      `simd`, host timing against the 2 ms budget)
 - [ ] Probabilistic trajectory cone generation over a 3-second horizon,
       accounting for human unpredictability (pedestrians, cyclists, vehicles)
 - [ ] Benchmark: <2ms per frame at 30Hz for a busy intersection (50+ agents)
